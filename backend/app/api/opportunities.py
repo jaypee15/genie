@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.opportunity import Opportunity
 from app.schemas.opportunity import OpportunityResponse, OpportunityFilters
 from app.agents.coordinator import CoordinatorAgent
+from app.auth import get_current_user, get_optional_user
 
 router = APIRouter()
 coordinator = CoordinatorAgent()
@@ -16,12 +17,16 @@ coordinator = CoordinatorAgent()
 @router.get("/", response_model=List[OpportunityResponse])
 async def list_opportunities(
     goal_id: Optional[UUID] = Query(None),
-    user_id: Optional[UUID] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[UUID] = Depends(get_optional_user)
 ):
-    if goal_id and user_id:
+    # If goal_id is provided, require authentication
+    if goal_id:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
         result = await coordinator.get_ranked_opportunities(
             db=db,
             goal_id=goal_id,

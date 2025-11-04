@@ -37,6 +37,7 @@ dist/
 .env
 .env.local
 .env.*.local
+frontend/.env.local
 
 # IDE
 .vscode/

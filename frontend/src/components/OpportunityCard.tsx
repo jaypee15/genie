@@ -2,7 +2,7 @@ import { Opportunity } from '@/types'
 import { ExternalLink, MapPin, DollarSign, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { useState } from 'react'
 import { useCreateFeedback } from '@/api/feedback'
-import { useUser } from '@/hooks/useUser'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface OpportunityCardProps {
   opportunity: Opportunity
@@ -10,12 +10,12 @@ interface OpportunityCardProps {
 }
 
 const OpportunityCard = ({ opportunity, goalId }: OpportunityCardProps) => {
-  const { userId } = useUser()
+  const { user } = useAuth()
   const [feedbackGiven, setFeedbackGiven] = useState(false)
   const createFeedbackMutation = useCreateFeedback()
 
   const handleFeedback = (rating: number) => {
-    if (!userId) return
+    if (!user) return
 
     createFeedbackMutation.mutate(
       {
@@ -24,7 +24,6 @@ const OpportunityCard = ({ opportunity, goalId }: OpportunityCardProps) => {
           goal_id: goalId,
           rating,
         },
-        userId,
       },
       {
         onSuccess: () => setFeedbackGiven(true),
@@ -33,46 +32,46 @@ const OpportunityCard = ({ opportunity, goalId }: OpportunityCardProps) => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+    <div className="bg-[#1A1A1A] border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-all">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-start justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-white">
               {opportunity.title}
             </h3>
             {opportunity.relevance_score && (
-              <span className="ml-2 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
+              <span className="ml-2 px-3 py-1 text-xs font-medium bg-green-500/10 text-green-400 rounded-full">
                 {Math.round(opportunity.relevance_score * 100)}% match
               </span>
             )}
           </div>
 
           {opportunity.description && (
-            <p className="mt-2 text-sm text-gray-600 line-clamp-3">
+            <p className="mt-2 text-sm text-gray-400 line-clamp-3">
               {opportunity.description}
             </p>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <span className="px-3 py-1 bg-cyan-500/10 text-cyan-400 rounded-full text-xs font-medium">
               {opportunity.source_name}
             </span>
 
             {opportunity.location && (
-              <span className="flex items-center">
-                <MapPin className="w-4 h-4 mr-1" />
+              <span className="flex items-center text-gray-400">
+                <MapPin className="w-4 h-4 mr-1.5" />
                 {opportunity.location}
               </span>
             )}
 
             {opportunity.remote && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+              <span className="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs font-medium">
                 Remote
               </span>
             )}
 
             {opportunity.compensation && (
-              <span className="flex items-center">
+              <span className="flex items-center text-gray-400">
                 <DollarSign className="w-4 h-4 mr-1" />
                 Paid
               </span>
@@ -84,7 +83,7 @@ const OpportunityCard = ({ opportunity, goalId }: OpportunityCardProps) => {
               {opportunity.tags.slice(0, 5).map((tag, index) => (
                 <span
                   key={index}
-                  className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded"
+                  className="text-xs px-3 py-1 bg-gray-800 text-gray-300 rounded-full"
                 >
                   {tag}
                 </span>
@@ -94,29 +93,30 @@ const OpportunityCard = ({ opportunity, goalId }: OpportunityCardProps) => {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between pt-4 border-t">
+      <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-800">
         <a
           href={opportunity.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700"
+          className="inline-flex items-center gap-2 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
         >
           View Original
-          <ExternalLink className="w-4 h-4 ml-1" />
+          <ExternalLink className="w-4 h-4" />
         </a>
 
         {!feedbackGiven ? (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 mr-2">Was this helpful?</span>
             <button
               onClick={() => handleFeedback(5)}
-              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+              className="p-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
               title="Relevant"
             >
               <ThumbsUp className="w-4 h-4" />
             </button>
             <button
               onClick={() => handleFeedback(1)}
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
               title="Not relevant"
             >
               <ThumbsDown className="w-4 h-4" />
@@ -131,4 +131,3 @@ const OpportunityCard = ({ opportunity, goalId }: OpportunityCardProps) => {
 }
 
 export default OpportunityCard
-

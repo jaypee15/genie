@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from app.services.llm import structured_completion, chat_completion
 from app.services.embeddings import generate_embedding
 import logging
@@ -7,6 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 class ClarifierAgent:
+    """
+    User-facing agent that handles all communication with the user.
+    All user inputs come through this agent, and all outputs to the user
+    are formatted and delivered by this agent.
+    """
     
     async def clarify_goal(self, initial_description: str) -> Dict[str, Any]:
         system_prompt = """You are a goal clarification assistant. Your job is to understand user goals 
@@ -108,4 +113,70 @@ class ClarifierAgent:
         """
         
         return await generate_embedding(embedding_text.strip())
+    
+    async def format_results_for_user(
+        self,
+        opportunities_count: int,
+        summary: Optional[str] = None,
+        status: str = "completed"
+    ) -> str:
+        """
+        Format search results into a user-friendly message.
+        All communication to the user goes through this method.
+        """
+        if status == "processing":
+            return "I'm searching for opportunities that match your goal. This may take 30-60 seconds..."
+        
+        if status == "error":
+            return "I encountered an issue while searching. Please try again or refine your goal."
+        
+        if opportunities_count == 0:
+            return """I couldn't find any opportunities matching your criteria right now. 
+            
+            Try:
+            - Broadening your search terms
+            - Removing location restrictions
+            - Trying a different opportunity type
+            
+            I'll keep monitoring for new opportunities!"""
+        
+        base_message = f"Great news! I found {opportunities_count} opportunities for you."
+        
+        if summary:
+            return f"{base_message}\n\n{summary}\n\nYou can now browse the results and provide feedback to help me improve future searches!"
+        
+        return f"{base_message}\n\nYou can now browse the results and provide feedback!"
+    
+    async def acknowledge_feedback(self, rating: int) -> str:
+        """
+        Acknowledge user feedback in a friendly way.
+        """
+        if rating >= 4:
+            return "Thanks for the feedback! I'll prioritize similar opportunities in the future."
+        elif rating <= 2:
+            return "Thanks for letting me know. I'll adjust my search to find better matches."
+        else:
+            return "Thanks for your feedback!"
+    
+    async def explain_goal_clarification(self, structured_goal: Dict[str, Any]) -> str:
+        """
+        Explain to the user how their goal was interpreted.
+        """
+        goal_type = structured_goal.get('goal_type', 'opportunity')
+        keywords = structured_goal.get('keywords', [])
+        location = structured_goal.get('location', 'any location')
+        
+        message = f"""I understand you're looking for {goal_type} opportunities"""
+        
+        if keywords:
+            message += f" related to {', '.join(keywords[:3])}"
+        
+        if location and location.lower() not in ['any', 'remote', '']:
+            message += f" in {location}"
+        elif structured_goal.get('remote', False):
+            message += " (remote positions)"
+        
+        message += ".\n\nI'll search across multiple platforms and notify you when I find relevant opportunities."
+        
+        return message
 

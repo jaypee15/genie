@@ -1,6 +1,6 @@
 import { Goal, GoalStatus } from '@/types'
 import { Link } from 'react-router-dom'
-import { Target, Pause, Play, Trash2 } from 'lucide-react'
+import { Sparkles, Pause, Play, Trash2, ArrowRight } from 'lucide-react'
 import { useUpdateGoal, useDeleteGoal } from '@/api/goals'
 
 interface GoalCardProps {
@@ -24,31 +24,41 @@ const GoalCard = ({ goal }: GoalCardProps) => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+    <div className="bg-[#1A1A1A] border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-all group">
       <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-3 flex-1">
-          <div className="flex-shrink-0">
-            <Target className="w-6 h-6 text-primary-600" />
+        <div className="flex items-start gap-4 flex-1">
+          <div className="w-10 h-10 bg-cyan-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-5 h-5 text-cyan-400" />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <Link
               to={`/goals/${goal.id}/opportunities`}
-              className="text-lg font-semibold text-gray-900 hover:text-primary-600"
+              className="text-lg font-semibold text-white hover:text-cyan-400 transition-colors line-clamp-2 flex items-center gap-2 group"
             >
-              {goal.description}
+              <span>{goal.description}</span>
+              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Link>
-            <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-              <span className="capitalize">{goal.goal_type}</span>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                {goal.status}
+            <div className="mt-3 flex items-center gap-3 text-sm">
+              <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full capitalize">
+                {goal.goal_type}
+              </span>
+              <span
+                className={`px-3 py-1 rounded-full font-medium ${
+                  goal.status === GoalStatus.ACTIVE
+                    ? 'bg-green-500/10 text-green-400'
+                    : 'bg-gray-800 text-gray-400'
+                }`}
+              >
+                {goal.status === GoalStatus.ACTIVE ? '● Active' : '○ Paused'}
               </span>
             </div>
           </div>
         </div>
-        <div className="flex items-center space-x-2 ml-4">
+        
+        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
           <button
             onClick={handleToggleStatus}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+            className="p-2.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
             title={goal.status === GoalStatus.ACTIVE ? 'Pause' : 'Resume'}
           >
             {goal.status === GoalStatus.ACTIVE ? (
@@ -59,7 +69,7 @@ const GoalCard = ({ goal }: GoalCardProps) => {
           </button>
           <button
             onClick={handleDelete}
-            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+            className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />
@@ -71,4 +81,3 @@ const GoalCard = ({ goal }: GoalCardProps) => {
 }
 
 export default GoalCard
-

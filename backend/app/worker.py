@@ -23,7 +23,13 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    client = await Client.connect(settings.temporal_host)
+    # Temporal Cloud requires TLS (use True for default TLS config with API key auth)
+    client = await Client.connect(
+        settings.temporal_address,
+        namespace=settings.temporal_namespace,
+        api_key=settings.temporal_api_key,
+        tls=True,
+    )
     
     worker = Worker(
         client,

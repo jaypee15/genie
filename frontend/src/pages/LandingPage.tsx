@@ -1,79 +1,193 @@
-import { Link } from 'react-router-dom'
-import { Target, Zap, TrendingUp, Search } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Sparkles } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { useCreateConversation, useConversation } from '@/api/chat'
+import { useAbly } from '@/hooks/useAbly'
+import { useAnswerQuestions } from '@/api/chat'
+import ChatMessage from '@/components/ChatMessage'
+import ChatInput from '@/components/ChatInput'
+import AuthModal from '@/components/AuthModal'
+import { useNavigate } from 'react-router-dom'
 
 const LandingPage = () => {
+  const { user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const [draftMessage, setDraftMessage] = useState<string | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const createConversation = useCreateConversation()
+  const answerQuestions = useAnswerQuestions()
+  const { data: conversation } = useConversation(currentConversationId || '')
+  const { messages: wsMessages, isConnected } = useAbly(currentConversationId)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const allMessages = [...(conversation?.messages || []), ...wsMessages]
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [allMessages])
+
+  // Auto-send draft message after successful login
+  useEffect(() => {
+    if (user && draftMessage && !authLoading) {
+      const messageCopy = draftMessage
+      setDraftMessage(null)
+      setShowAuthModal(false)
+      handleSendMessage(messageCopy)
+    }
+  }, [user, draftMessage, authLoading])
+
+  const handleSendMessage = async (message: string) => {
+    // Check if user is authenticated
+    if (!user) {
+      // Save draft and show auth modal
+      setDraftMessage(message)
+      setShowAuthModal(true)
+      return
+    }
+
+    try {
+      const result = await createConversation.mutateAsync({
+        initialMessage: message,
+      })
+      setCurrentConversationId(result.id)
+      navigate(`/chat/${result.id}`)
+    } catch (error) {
+      console.error('Error creating conversation:', error)
+    }
+  }
+
+  const handleAnswerQuestions = async (answers: Array<{ question: string; answer: string }>) => {
+    if (!currentConversationId) return
+
+    try {
+      await answerQuestions.mutateAsync({
+        conversationId: currentConversationId,
+        answers,
+      })
+    } catch (error) {
+      console.error('Error answering questions:', error)
+    }
+  }
+
+  const isProcessing =
+    createConversation.isPending ||
+    answerQuestions.isPending ||
+    conversation?.status === 'processing'
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white">
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex justify-between items-center">
-          <span className="text-3xl font-bold text-primary-600">Genie</span>
-          <Link
-            to="/dashboard"
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            Get Started
-          </Link>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Your AI-Powered
-            <span className="text-primary-600"> Opportunity Scout</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Discover relevant career, speaking, and growth opportunities tailored to
-            your goals. Let Genie continuously search and notify you of new
-            opportunities.
-          </p>
-          <Link
-            to="/goals/new"
-            className="inline-flex items-center px-8 py-4 bg-primary-600 text-white text-lg font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-lg"
-          >
-            <Target className="w-5 h-5 mr-2" />
-            Create Your First Goal
-          </Link>
-        </div>
-
-        <div className="mt-20 grid md:grid-cols-3 gap-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-              <Search className="w-6 h-6 text-primary-600" />
+    <div className="flex flex-col h-full bg-[#0A0A0A]">
+      {allMessages.length === 0 ? (
+        // Welcome Screen - Centered
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
+          <div className="w-full max-w-3xl">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-3 mb-6">
+                <Sparkles className="w-16 h-16 text-cyan-400" />
+                <h1 className="text-6xl font-bold tracking-tight text-white">genie</h1>
+              </div>
+              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                Your AI-powered opportunity scout. Discover jobs, speaking engagements, and growth opportunities tailored to your goals.
+              </p>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Smart Discovery</h3>
-            <p className="text-gray-600">
-              AI-powered search across multiple sources to find opportunities that
-              match your unique goals.
-            </p>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-              <Zap className="w-6 h-6 text-primary-600" />
+            {/* Centered Input */}
+            <div className="mb-8">
+              <ChatInput
+                onSend={handleSendMessage}
+                disabled={isProcessing}
+                placeholder="What opportunities are you looking for?"
+              />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Continuous Updates</h3>
-            <p className="text-gray-600">
-              Get notified automatically when new relevant opportunities are found.
-              Never miss out again.
-            </p>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-              <TrendingUp className="w-6 h-6 text-primary-600" />
+            {/* Example prompts */}
+            <div className="flex flex-wrap gap-3 justify-center">
+              {[
+                'Find remote software engineering jobs in AI',
+                'Speaking opportunities at tech conferences',
+                'Freelance web development projects',
+                'ML research positions at startups'
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => handleSendMessage(prompt)}
+                  className="px-4 py-2 bg-[#1A1A1A] hover:bg-[#252525] border border-gray-800 rounded-full text-sm text-gray-300 transition-all duration-200"
+                >
+                  {prompt}
+                </button>
+              ))}
             </div>
-            <h3 className="text-xl font-semibold mb-2">Personalized Ranking</h3>
-            <p className="text-gray-600">
-              Learn from your feedback to show you the most relevant opportunities
-              first.
-            </p>
           </div>
         </div>
-      </main>
+      ) : (
+        <>
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto px-6 py-8">
+            <div className="max-w-3xl mx-auto">
+              <div className="space-y-6">
+                {allMessages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onAnswerQuestions={handleAnswerQuestions}
+                    isProcessing={isProcessing}
+                  />
+                ))}
+                {isProcessing && (
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+          </div>
+
+          {/* Chat Input - Fixed at bottom */}
+          <div className="border-t border-gray-800 bg-[#0A0A0A]">
+            <div className="max-w-3xl mx-auto px-6 py-4">
+              <ChatInput
+                onSend={handleSendMessage}
+                disabled={isProcessing}
+                placeholder="Type your message..."
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false)
+          setDraftMessage(null)
+        }}
+        onSuccess={() => {
+          // Draft will be sent automatically via useEffect
+        }}
+      />
+
+      {/* WebSocket Status (for debugging) */}
+      {currentConversationId && (
+        <div className="fixed bottom-20 right-4 px-3 py-1 bg-gray-800 rounded-full text-xs">
+          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+          {isConnected ? 'Connected' : 'Disconnected'}
+        </div>
+      )}
     </div>
   )
 }
 
 export default LandingPage
-

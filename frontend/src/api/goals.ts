@@ -2,16 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import apiClient from './client'
 import { Goal, GoalCreateInput, GoalStatus } from '@/types'
 
-export const useGoals = (userId: string) => {
+export const useGoals = (enabled: boolean = true) => {
   return useQuery({
-    queryKey: ['goals', userId],
+    queryKey: ['goals'],
     queryFn: async () => {
-      const { data } = await apiClient.get<Goal[]>('/goals', {
-        params: { user_id: userId },
-      })
+      const { data } = await apiClient.get<Goal[]>('/goals/')
       return data
     },
-    enabled: !!userId,
+    enabled,
   })
 }
 
@@ -32,18 +30,14 @@ export const useCreateGoal = () => {
   return useMutation({
     mutationFn: async ({
       goalData,
-      userId,
     }: {
       goalData: GoalCreateInput
-      userId: string
     }) => {
-      const { data } = await apiClient.post<Goal>('/goals', goalData, {
-        params: { user_id: userId },
-      })
+      const { data } = await apiClient.post<Goal>('/goals/', goalData)
       return data
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['goals', variables.userId] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] })
     },
   })
 }

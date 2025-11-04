@@ -12,7 +12,7 @@ Before you begin, ensure you have the following installed:
    - Sign up at: https://platform.openai.com
    - Generate an API key from the dashboard
 
-3. **(Optional) Supabase Account**
+3. **Supabase Account**
    - Sign up at: https://supabase.com
    - Create a new project
    - Get your project URL and API keys
@@ -42,7 +42,7 @@ OPENAI_API_KEY=sk-your-actual-openai-key-here
 
 # Optional: Supabase (or use local PostgreSQL)
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key
+SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Database (default for local development)

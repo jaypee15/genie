@@ -1,12 +1,11 @@
 from typing import List, Dict, Any
-from app.scrapers.base import BaseScraper
-from bs4 import BeautifulSoup
+from app.scrapers.crawl4ai_base import Crawl4AIBaseScraper
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class EventbriteScraper(BaseScraper):
+class EventbriteScraper(Crawl4AIBaseScraper):
     
     def __init__(self):
         super().__init__(
@@ -16,58 +15,32 @@ class EventbriteScraper(BaseScraper):
     
     async def scrape(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:
-            keywords = filters.get("keywords", ["tech", "conference"])
-            query = "+".join(keywords) if isinstance(keywords, list) else "tech"
+            keywords = filters.get("keywords", ["tech", "startup", "developer"])
+            location = filters.get("location", "online")
             
-            url = f"{self.base_url}/d/online/tech-events/"
-            html = await self._fetch(url)
+            query = "+".join(keywords) if isinstance(keywords, list) else keywords
+            url = f"{self.base_url}/d/{location}/{query}--events"
             
-            soup = BeautifulSoup(html, 'lxml')
+            instruction = """
+            Extract all upcoming events.
+            Focus on:
+            - Event names/titles
+            - Event organizers
+            - Brief event descriptions
+            - Event locations or "Online"
+            - Event dates
+            - Links to event pages
+            - Ticket prices if visible (Free, Paid, price range)
+            Only include future events, ignore past events.
+            """
+            
+            raw_opportunities = await self._crawl_with_llm(url, instruction)
             
             opportunities = []
-            
-            event_cards = soup.find_all('div', class_='event-card') or soup.find_all('article')
-            
-            for card in event_cards[:20]:
-                try:
-                    link = card.find('a', href=True)
-                    if not link:
-                        continue
-                    
-                    event_url = link['href']
-                    if not event_url.startswith('http'):
-                        event_url = f"{self.base_url}{event_url}"
-                    
-                    title_elem = card.find('h3') or card.find('h2') or link
-                    title = title_elem.text.strip() if title_elem else "Unknown Event"
-                    
-                    description = ""
-                    desc_elem = card.find('p')
-                    if desc_elem:
-                        description = desc_elem.text.strip()
-                    
-                    location = "Online"
-                    location_elem = card.find(class_='location')
-                    if location_elem:
-                        location = location_elem.text.strip()
-                    
-                    opportunity = self._normalize_opportunity(
-                        {
-                            "title": title,
-                            "description": description,
-                            "url": event_url,
-                            "location": location,
-                            "remote": "online" in location.lower() or "virtual" in location.lower(),
-                            "tags": ["event", "eventbrite"]
-                        },
-                        opportunity_type="event"
-                    )
-                    
-                    opportunities.append(opportunity)
-                    
-                except Exception as e:
-                    logger.warning(f"Error parsing event card: {e}")
-                    continue
+            for raw_opp in raw_opportunities:
+                normalized = self._normalize_opportunity(raw_opp, "event")
+                if normalized.get("source_url"):
+                    opportunities.append(normalized)
             
             logger.info(f"Scraped {len(opportunities)} opportunities from Eventbrite")
             return opportunities
@@ -75,4 +48,3 @@ class EventbriteScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Error scraping Eventbrite: {e}")
             return []
-

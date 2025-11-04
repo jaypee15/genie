@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 import uuid
 
@@ -16,4 +17,6 @@ class User(Base):
     embedding = Column(Vector(1536))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    conversations = relationship("Conversation", back_populates="user")
 

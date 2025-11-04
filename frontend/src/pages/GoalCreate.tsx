@@ -1,24 +1,31 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Target } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Sparkles } from 'lucide-react'
 import { useCreateGoal } from '@/api/goals'
-import { useUser } from '@/hooks/useUser'
+import { useAuth } from '@/contexts/AuthContext'
 
 const GoalCreate = () => {
   const navigate = useNavigate()
-  const { userId } = useUser()
+  const location = useLocation()
+  const { user } = useAuth()
   const [description, setDescription] = useState('')
   const createGoalMutation = useCreateGoal()
+
+  useEffect(() => {
+    const initialGoal = location.state?.initialGoal
+    if (initialGoal) {
+      setDescription(initialGoal)
+    }
+  }, [location])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!userId || !description.trim()) return
+    if (!user || !description.trim()) return
 
     createGoalMutation.mutate(
       {
         goalData: { description },
-        userId,
       },
       {
         onSuccess: (goal) => {
@@ -29,78 +36,107 @@ const GoalCreate = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg shadow p-8">
-        <div className="flex items-center mb-6">
-          <Target className="w-8 h-8 text-primary-600 mr-3" />
-          <h1 className="text-2xl font-bold text-gray-900">Create a New Goal</h1>
+    <div className="min-h-screen bg-[#0A0A0A] text-white p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-cyan-400" />
+            </div>
+            <h1 className="text-3xl font-bold">Create a New Goal</h1>
+          </div>
+          <p className="text-gray-400 text-lg">
+            Describe what kind of opportunities you're looking for. Be as specific as
+            possible - Genie will help clarify and find the best matches.
+          </p>
         </div>
 
-        <p className="text-gray-600 mb-6">
-          Describe what kind of opportunities you're looking for. Be as specific as
-          possible - Genie will help clarify and find the best matches.
-        </p>
+        {/* Form */}
+        <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label
+                htmlFor="description"
+                className="block text-sm font-medium text-gray-300 mb-3"
+              >
+                What are you looking for?
+              </label>
+              <textarea
+                id="description"
+                rows={8}
+                className="w-full px-6 py-4 bg-[#0A0A0A] border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all resize-none"
+                placeholder="e.g., I want to find remote software engineering positions at early-stage startups working on AI/ML products..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              What are you looking for?
-            </label>
-            <textarea
-              id="description"
-              rows={6}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="e.g., I want to become a public speaker on sustainability and green technology..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-            />
-          </div>
+            <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-6">
+              <p className="text-sm text-cyan-300 font-medium mb-3">
+                💡 Pro tip: Include details like
+              </p>
+              <ul className="text-sm text-gray-400 space-y-2 ml-4">
+                <li className="flex items-start">
+                  <span className="text-cyan-400 mr-2">•</span>
+                  <span>Type of opportunity (job, speaking, event, grant)</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-cyan-400 mr-2">•</span>
+                  <span>Your area of expertise or interest</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-cyan-400 mr-2">•</span>
+                  <span>Location preferences or remote work</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-cyan-400 mr-2">•</span>
+                  <span>Compensation requirements</span>
+                </li>
+              </ul>
+            </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-800">
-              <strong>Pro tip:</strong> Include details like:
-            </p>
-            <ul className="mt-2 text-sm text-blue-700 list-disc list-inside space-y-1">
-              <li>Type of opportunity (job, speaking, event, grant)</li>
-              <li>Your area of expertise or interest</li>
-              <li>Location preferences or remote work</li>
-              <li>Compensation requirements</li>
-            </ul>
-          </div>
+            <div className="flex justify-end gap-4 pt-4">
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-gray-800 text-gray-300 rounded-xl font-medium transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createGoalMutation.isPending || !description.trim()}
+                className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {createGoalMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Create Goal
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
 
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard')}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createGoalMutation.isPending || !description.trim()}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {createGoalMutation.isPending ? 'Creating...' : 'Create Goal'}
-            </button>
-          </div>
-        </form>
-
-        {createGoalMutation.isError && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-800">
-              Failed to create goal. Please try again.
-            </p>
-          </div>
-        )}
+          {createGoalMutation.isError && (
+            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+              <p className="text-sm text-red-400">
+                Failed to create goal. Please try again.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
 export default GoalCreate
-

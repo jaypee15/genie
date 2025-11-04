@@ -1,11 +1,11 @@
 from typing import List, Dict, Any
-from app.scrapers.base import BaseScraper
+from app.scrapers.crawl4ai_base import Crawl4AIBaseScraper
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class RemoteOKScraper(BaseScraper):
+class RemoteOKScraper(Crawl4AIBaseScraper):
     
     def __init__(self):
         super().__init__(
@@ -17,7 +17,7 @@ class RemoteOKScraper(BaseScraper):
         try:
             url = f"{self.base_url}/api"
             
-            data = await self._fetch_json(url)
+            data = await self._crawl_json(url)
             
             if not isinstance(data, list):
                 return []
@@ -55,9 +55,8 @@ class RemoteOKScraper(BaseScraper):
                             "description": description,
                             "url": job_url,
                             "location": "Remote",
-                            "remote": True,
-                            "compensation": compensation if compensation else None,
-                            "tags": tags
+                            "tags": tags,
+                            "compensation_info": f"${salary_min}-${salary_max}" if salary_min else None
                         },
                         opportunity_type="job"
                     )
@@ -74,4 +73,3 @@ class RemoteOKScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Error scraping RemoteOK: {e}")
             return []
-

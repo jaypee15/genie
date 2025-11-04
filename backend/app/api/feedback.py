@@ -7,6 +7,7 @@ from uuid import UUID
 from app.database import get_db
 from app.models.feedback import Feedback
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse
+from app.auth import get_current_user
 
 router = APIRouter()
 
@@ -14,8 +15,8 @@ router = APIRouter()
 @router.post("/", response_model=FeedbackResponse)
 async def create_feedback(
     feedback_data: FeedbackCreate,
-    user_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     feedback = Feedback(
         user_id=user_id,
@@ -34,9 +35,9 @@ async def create_feedback(
 
 @router.get("/", response_model=List[FeedbackResponse])
 async def list_feedback(
-    user_id: UUID,
     goal_id: UUID = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     query = select(Feedback).where(Feedback.user_id == user_id)
     
@@ -51,9 +52,9 @@ async def list_feedback(
 
 @router.get("/stats")
 async def get_feedback_stats(
-    user_id: UUID,
     goal_id: UUID = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     query = select(
         func.avg(Feedback.rating).label("average_rating"),

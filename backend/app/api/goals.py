@@ -9,6 +9,7 @@ from app.models.goal import Goal, GoalStatus, GoalType
 from app.models.user import User
 from app.schemas.goal import GoalCreate, GoalResponse, GoalUpdate
 from app.agents.coordinator import CoordinatorAgent
+from app.auth import get_current_user
 
 router = APIRouter()
 coordinator = CoordinatorAgent()
@@ -17,18 +18,10 @@ coordinator = CoordinatorAgent()
 @router.post("/", response_model=GoalResponse)
 async def create_goal(
     goal_data: GoalCreate,
-    user_id: UUID,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
     goal = Goal(
         user_id=user_id,
         description=goal_data.description,
@@ -72,8 +65,8 @@ async def process_goal_background(goal_id: str, user_id: UUID, description: str)
 
 @router.get("/", response_model=List[GoalResponse])
 async def list_goals(
-    user_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     result = await db.execute(
         select(Goal).where(Goal.user_id == user_id)
@@ -85,7 +78,8 @@ async def list_goals(
 @router.get("/{goal_id}", response_model=GoalResponse)
 async def get_goal(
     goal_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     result = await db.execute(
         select(Goal).where(Goal.id == goal_id)
@@ -94,6 +88,10 @@ async def get_goal(
     
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
+    
+    # Verify ownership
+    if goal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     return goal
 
@@ -102,7 +100,8 @@ async def get_goal(
 async def update_goal(
     goal_id: UUID,
     goal_update: GoalUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     result = await db.execute(
         select(Goal).where(Goal.id == goal_id)
@@ -111,6 +110,10 @@ async def update_goal(
     
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
+    
+    # Verify ownership
+    if goal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     if goal_update.status:
         goal.status = goal_update.status
@@ -127,7 +130,8 @@ async def update_goal(
 @router.delete("/{goal_id}")
 async def delete_goal(
     goal_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     result = await db.execute(
         select(Goal).where(Goal.id == goal_id)
@@ -136,6 +140,10 @@ async def delete_goal(
     
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
+    
+    # Verify ownership
+    if goal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     await db.delete(goal)
     await db.commit()
@@ -147,7 +155,8 @@ async def delete_goal(
 async def refresh_goal_opportunities(
     goal_id: UUID,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user)
 ):
     result = await db.execute(
         select(Goal).where(Goal.id == goal_id)
@@ -156,6 +165,10 @@ async def refresh_goal_opportunities(
     
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
+    
+    # Verify ownership
+    if goal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     background_tasks.add_task(
         refresh_goal_background,

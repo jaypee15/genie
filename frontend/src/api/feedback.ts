@@ -8,14 +8,10 @@ export const useCreateFeedback = () => {
   return useMutation({
     mutationFn: async ({
       feedbackData,
-      userId,
     }: {
       feedbackData: FeedbackCreateInput
-      userId: string
     }) => {
-      const { data } = await apiClient.post<Feedback>('/feedback', feedbackData, {
-        params: { user_id: userId },
-      })
+      const { data } = await apiClient.post<Feedback>('/feedback/', feedbackData)
       return data
     },
     onSuccess: (data) => {

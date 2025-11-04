@@ -75,3 +75,6 @@ export interface FeedbackCreateInput {
   comment?: string
 }
 
+// Re-export chat types
+export * from './chat'
+

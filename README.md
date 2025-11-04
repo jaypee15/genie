@@ -18,6 +18,7 @@ Genie is an intelligent agent that continuously discovers relevant career, speak
 - **Temporal** - Workflow orchestration for async tasks
 - **OpenAI GPT-4** - LLM for goal clarification and summarization
 - **SQLAlchemy** - ORM for database operations
+- **Ably** - Managed realtime messaging and WebSocket infrastructure
 
 ### Frontend Stack
 - **React 18 + TypeScript** - Modern UI framework
@@ -36,7 +37,9 @@ Genie is an intelligent agent that continuously discovers relevant career, speak
 ### Prerequisites
 - Docker and Docker Compose
 - OpenAI API key
-- (Optional) Supabase account
+- Ably account (for realtime updates)
+- Supabase account (for auth and database)
+- Temporal Cloud account (for workflow orchestration)
 
 ### Setup
 
@@ -52,12 +55,15 @@ cp .env.example .env
 # Edit .env and add your API keys
 ```
 
-3. Start all services:
+3. Set up Ably for realtime communication:
+See [ABLY_SETUP.md](./ABLY_SETUP.md) for detailed instructions.
+
+4. Start all services:
 ```bash
 docker-compose up -d
 ```
 
-4. Access the application:
+5. Access the application:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
@@ -192,18 +198,30 @@ Continuous monitoring for active goals:
 Key environment variables:
 
 ```bash
-# Database
-DATABASE_URL=postgresql://postgres:password@localhost:5432/genie
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+# Database (use direct port 5432, not pooled 6543)
+DATABASE_URL=postgresql+asyncpg://user:password@host:5432/database
 
 # OpenAI
 OPENAI_API_KEY=sk-...
 
-# Temporal
-TEMPORAL_HOST=localhost:7233
+# Temporal Cloud
+TEMPORAL_ADDRESS=your-namespace.tmprl.cloud:7233
+TEMPORAL_NAMESPACE=your-namespace
+TEMPORAL_API_KEY=your-temporal-api-key
+
+# Ably Realtime
+ABLY_API_KEY=your-ably-api-key
 
 # Application
+SECRET_KEY=your-secret-key-min-32-characters
 DEBUG=True
-ALLOWED_ORIGINS=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 
 # Scraping
 SCRAPING_RATE_LIMIT=2

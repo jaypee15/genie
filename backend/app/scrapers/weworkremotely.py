@@ -1,12 +1,11 @@
 from typing import List, Dict, Any
-from app.scrapers.base import BaseScraper
-from bs4 import BeautifulSoup
+from app.scrapers.crawl4ai_base import Crawl4AIBaseScraper
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class WeWorkRemotelyScraper(BaseScraper):
+class WeWorkRemotelyScraper(Crawl4AIBaseScraper):
     
     def __init__(self):
         super().__init__(
@@ -16,51 +15,32 @@ class WeWorkRemotelyScraper(BaseScraper):
     
     async def scrape(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:
-            url = f"{self.base_url}/categories/remote-programming-jobs"
-            html = await self._fetch(url)
+            category = filters.get("category", "programming")
+            url = f"{self.base_url}/categories/remote-{category}-jobs"
             
-            soup = BeautifulSoup(html, 'lxml')
+            instruction = """
+            Extract all remote job listings.
+            Focus on:
+            - Job titles
+            - Company names
+            - Job descriptions
+            - Job categories (Programming, Design, Marketing, etc.)
+            - Salary information if available
+            - Links to job postings
+            - Time zones or location preferences if mentioned
+            All jobs are remote, but note any specific region requirements.
+            """
+            
+            raw_opportunities = await self._crawl_with_llm(url, instruction)
             
             opportunities = []
-            
-            job_listings = soup.find_all('li', class_='feature')
-            
-            for listing in job_listings[:20]:
-                try:
-                    link = listing.find('a', href=True)
-                    if not link:
-                        continue
-                    
-                    job_url = link['href']
-                    if not job_url.startswith('http'):
-                        job_url = f"{self.base_url}{job_url}"
-                    
-                    title_elem = listing.find('span', class_='title')
-                    title = title_elem.text.strip() if title_elem else "Unknown Position"
-                    
-                    company_elem = listing.find('span', class_='company')
-                    company = company_elem.text.strip() if company_elem else "Unknown Company"
-                    
-                    category_elem = listing.find('span', class_='region')
-                    category = category_elem.text.strip() if category_elem else ""
-                    
-                    opportunity = self._normalize_opportunity(
-                        {
-                            "title": f"{title} at {company}",
-                            "description": category,
-                            "url": job_url,
-                            "location": "Remote",
-                            "remote": True,
-                            "tags": ["remote", "programming"]
-                        },
-                        opportunity_type="job"
-                    )
-                    
-                    opportunities.append(opportunity)
-                    
-                except Exception as e:
-                    logger.warning(f"Error parsing job listing: {e}")
-                    continue
+            for raw_opp in raw_opportunities:
+                normalized = self._normalize_opportunity(raw_opp, "job")
+                # Ensure remote flag is set
+                normalized["remote"] = True
+                normalized["location"] = normalized.get("location", "Remote")
+                if normalized.get("source_url"):
+                    opportunities.append(normalized)
             
             logger.info(f"Scraped {len(opportunities)} opportunities from WeWorkRemotely")
             return opportunities
@@ -68,4 +48,3 @@ class WeWorkRemotelyScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Error scraping WeWorkRemotely: {e}")
             return []
-

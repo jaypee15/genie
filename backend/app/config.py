@@ -10,14 +10,18 @@ class Settings(BaseSettings):
     )
 
     supabase_url: str
-    supabase_key: str
+    supabase_anon_key: str
     supabase_service_role_key: str
+    supabase_jwt_secret: str
     database_url: str
     
     openai_api_key: str
     
-    temporal_host: str = "localhost:7233"
-    temporal_namespace: str = "default"
+    temporal_address: str
+    temporal_namespace: str
+    temporal_api_key: str
+    
+    ably_api_key: str
     
     app_name: str = "Genie"
     app_version: str = "1.0.0"
