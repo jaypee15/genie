@@ -45,7 +45,7 @@ class ClarifierAgent:
         ]
         
         try:
-            structured_goal = await structured_completion(messages, model="gpt-4")
+            structured_goal = await structured_completion(messages, model="gpt-4o-mini")
             structured_goal["original_description"] = initial_description
             return structured_goal
         except Exception as e:
@@ -56,26 +56,35 @@ class ClarifierAgent:
         self, 
         initial_description: str, 
         preliminary_analysis: Dict[str, Any]
-    ) -> List[str]:
+    ) -> str:
+        """Generate a conversational message with clarifying questions"""
         prompt = f"""Based on this user goal: "{initial_description}"
         
         And this preliminary analysis:
         {preliminary_analysis}
         
-        Generate 2-3 clarifying questions to better understand what the user is looking for.
-        Make questions specific and actionable. Return as a JSON array of strings."""
+        Write a friendly, conversational message asking 2-5 clarifying questions to better understand what they're looking for.
+        
+        Make it feel natural like you're chatting with someone, not like a form. Number your questions (1., 2., 3.) for clarity. For example:
+        "I'd love to help you find the perfect opportunities! To narrow things down, could you tell me a bit more about:
+        
+        1. What specific technologies or areas are you most interested in?
+        2. Are you looking for remote positions, or do you have a location preference?
+        3. What's your ideal company size or type?"
+        
+        Keep it warm and conversational. Number the questions clearly. Just return the message text, no JSON."""
         
         messages = [
-            {"role": "system", "content": "You are a helpful assistant that asks clarifying questions."},
+            {"role": "system", "content": "You are a friendly AI assistant helping someone find opportunities. You ask clarifying questions in a natural, conversational way."},
             {"role": "user", "content": prompt}
         ]
         
         try:
-            response = await structured_completion(messages, model="gpt-4")
-            return response.get("questions", [])
+            response = await chat_completion(messages, model="gpt-4o-mini", temperature=0.8)
+            return response
         except Exception as e:
             logger.error(f"Error generating clarifying questions: {e}")
-            return []
+            return "I'd love to help you find the right opportunities! Could you tell me a bit more about what you're looking for?"
     
     async def refine_goal_with_answers(
         self,
@@ -99,7 +108,7 @@ class ClarifierAgent:
         ]
         
         try:
-            refined_goal = await structured_completion(messages, model="gpt-4")
+            refined_goal = await structured_completion(messages, model="gpt-4o-mini")
             return refined_goal
         except Exception as e:
             logger.error(f"Error refining goal: {e}")

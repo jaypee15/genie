@@ -38,10 +38,11 @@ async def chat_completion(
 
 async def structured_completion(
     messages: List[Dict[str, str]],
-    model: str = "gpt-4",
+    model: str = "gpt-4o-mini",
     temperature: float = 0.7
 ) -> Dict[str, Any]:
     try:
+        # First try with JSON mode (supported by -o models)
         response = await chat_completion(
             messages=messages,
             model=model,
@@ -51,7 +52,18 @@ async def structured_completion(
         return json.loads(response)
     except Exception as e:
         logger.error(f"Error in structured completion: {e}")
-        raise
+        # Fallback: try without response_format and parse best-effort
+        try:
+            response = await chat_completion(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                response_format=None
+            )
+            return json.loads(response)
+        except Exception as inner:
+            logger.error(f"Fallback parsing failed: {inner}")
+            raise
 
 
 async def summarize_opportunities(opportunities: List[Dict[str, Any]]) -> str:

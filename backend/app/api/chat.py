@@ -7,6 +7,7 @@ from uuid import UUID
 import logging
 import json
 from ably import AblyRest
+import inspect
 
 from app.database import get_db
 from app.models.chat import Conversation, Message
@@ -29,21 +30,42 @@ from app.config import settings
 router = APIRouter()
 coordinator = CoordinatorAgent()
 logger = logging.getLogger(__name__)
-ably_auth = AblyRest(api_key=settings.ably_api_key)
+ably_auth = AblyRest(key=settings.ably_api_key)
+
+
+def generate_title_from_message(message: str, max_words: int = 6) -> str:
+    """Generate a conversation title from the first few words of a message"""
+    words = message.strip().split()[:max_words]
+    title = ' '.join(words)
+    if len(message.split()) > max_words:
+        title += '...'
+    return title
 
 
 @router.get("/realtime/token")
 async def get_ably_token(user_id: UUID = Depends(get_current_user)):
     """Generate Ably token with subscribe-only capability for user's conversations"""
-    capability = {
-        "conversation:*": ["subscribe"]
-    }
+    capability = {"conversation:*": ["subscribe"]}
     token_request = ably_auth.auth.create_token_request(
-        client_id=str(user_id),
-        capability=capability,
-        ttl=3600000  # 1 hour
+        token_params={
+            "client_id": str(user_id),
+            "capability": json.dumps(capability),
+            "ttl": 3600000,  # 1 hour in ms
+        }
     )
-    return token_request
+    # Support both sync and async return types
+    if inspect.isawaitable(token_request):
+        token_request = await token_request
+    # Ensure JSON serializable output
+    if hasattr(token_request, "to_dict"):
+        return token_request.to_dict()  # type: ignore[attr-defined]
+    if isinstance(token_request, dict):
+        return token_request
+    # Fallback: try to coerce to dict
+    try:
+        return dict(token_request)  # type: ignore[arg-type]
+    except Exception:
+        return token_request
 
 
 @router.post("/", response_model=ConversationResponse)
@@ -59,7 +81,10 @@ async def create_conversation(
     if email:
         await get_or_create_user(db, user_id, email)
     
-    conversation = Conversation(user_id=user_id, status="clarifying")
+    # Generate title from initial message
+    title = generate_title_from_message(conversation_data.initial_message)
+    
+    conversation = Conversation(user_id=user_id, status="clarifying", title=title)
     db.add(conversation)
     await db.commit()
     await db.refresh(conversation)
@@ -86,24 +111,25 @@ async def process_initial_message(conversation_id: str, initial_message: str):
     
     async with AsyncSessionLocal() as db:
         try:
-            questions = await coordinator.generate_questions(initial_message)
+            conversational_message = await coordinator.generate_questions(initial_message)
             
             assistant_message = Message(
                 conversation_id=UUID(conversation_id),
                 role="assistant",
-                content="I'd like to understand your goal better. Please answer these questions:",
-                metadata_json={"type": "questions", "questions": questions}
+                content=conversational_message,
+                metadata_json={"type": "clarifying"}
             )
             db.add(assistant_message)
             await db.commit()
             
-            ably_service.publish_message(conversation_id, {
+            await ably_service.publish_message(conversation_id, {
                 "type": "message",
                 "message": {
                     "id": str(assistant_message.id),
+                    "conversation_id": conversation_id,
                     "role": "assistant",
                     "content": assistant_message.content,
-                    "metadata_json": assistant_message.metadata_json,
+                    "metadata": assistant_message.metadata_json,
                     "created_at": assistant_message.created_at.isoformat()
                 }
             })
@@ -153,7 +179,7 @@ async def get_conversation(
     
     return ConversationWithMessages(
         **conversation.__dict__,
-        messages=[MessageResponse.from_orm(m) for m in messages]
+        messages=[MessageResponse.model_validate(m) for m in messages]
     )
 
 
@@ -263,12 +289,14 @@ async def process_goal_from_answers(conversation_id: str, user_id: str, answers:
             db.add(processing_message)
             await db.commit()
             
-            ably_service.publish_message(conversation_id, {
+            await ably_service.publish_message(conversation_id, {
                 "type": "message",
                 "message": {
                     "id": str(processing_message.id),
+                    "conversation_id": conversation_id,
                     "role": "assistant",
                     "content": processing_message.content,
+                    "metadata": processing_message.metadata_json,
                     "created_at": processing_message.created_at.isoformat()
                 }
             })
@@ -299,18 +327,19 @@ async def process_goal_from_answers(conversation_id: str, user_id: str, answers:
                 db.add(completion_message)
                 await db.commit()
                 
-                ably_service.publish_message(conversation_id, {
+                await ably_service.publish_message(conversation_id, {
                     "type": "message",
                     "message": {
                         "id": str(completion_message.id),
+                        "conversation_id": conversation_id,
                         "role": "assistant",
                         "content": completion_message.content,
-                        "metadata_json": completion_message.metadata_json,
+                        "metadata": completion_message.metadata_json,
                         "created_at": completion_message.created_at.isoformat()
                     }
                 })
                 
-                ably_service.publish_complete(
+                await ably_service.publish_complete(
                     conversation_id,
                     goal_id,
                     goal_result.get("opportunities_found", 0)

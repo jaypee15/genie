@@ -15,7 +15,7 @@ const ChatMessage = ({ message, onAnswerQuestions, isProcessing }: ChatMessagePr
   if (isStatus) {
     return (
       <div className="flex justify-center py-2">
-        <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-sm text-cyan-300">
+        <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-base text-cyan-300">
           {message.content}
         </div>
       </div>
@@ -44,20 +44,9 @@ const ChatMessage = ({ message, onAnswerQuestions, isProcessing }: ChatMessagePr
               : 'bg-[#1A1A1A] border border-gray-800 text-white'
           }`}
         >
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p>
 
-          {/* Render Questions Form */}
-          {message.metadata?.type === 'questions' &&
-            message.metadata.questions &&
-            onAnswerQuestions && (
-              <div className="mt-4">
-                <QuestionForm
-                  questions={message.metadata.questions}
-                  onSubmit={onAnswerQuestions}
-                  disabled={isProcessing}
-                />
-              </div>
-            )}
+          {/* No special rendering needed - clarifying messages are just regular conversational text */}
 
           {/* Completion with Goal Link */}
           {message.metadata?.type === 'completion' && message.metadata.goal_id && (
@@ -70,7 +59,7 @@ const ChatMessage = ({ message, onAnswerQuestions, isProcessing }: ChatMessagePr
           )}
         </div>
 
-        <div className="text-xs text-gray-500 mt-1 px-1">
+        <div className="text-sm text-gray-500 mt-1 px-1">
           {new Date(message.created_at).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',

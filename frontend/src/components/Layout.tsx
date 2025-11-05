@@ -18,7 +18,7 @@ const Layout = () => {
   return (
     <div className="flex h-screen bg-[#0A0A0A]">
       {/* Sidebar */}
-      <aside className={`border-r border-gray-800/50 flex flex-col transition-all duration-300 ${
+      <aside className={`fixed left-0 top-0 h-full border-r border-gray-800/50 bg-[#0A0A0A] flex flex-col transition-all duration-300 z-50 ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}>
         {/* Logo & Toggle */}
@@ -26,7 +26,7 @@ const Layout = () => {
           {!isCollapsed && (
             <div className="flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-cyan-400" />
-              <span className="text-xl font-semibold text-white">genie</span>
+              <span className="text-2xl font-semibold text-white">genie</span>
             </div>
           )}
           <button
@@ -80,7 +80,7 @@ const Layout = () => {
 
           <Link
             to="/dashboard"
-            className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all ${
+            className={`flex items-center gap-3 rounded-xl text-base font-medium transition-all ${
               isCollapsed ? 'px-3 py-3 justify-center' : 'px-4 py-3'
             } ${
               isActive('/dashboard')
@@ -95,7 +95,7 @@ const Layout = () => {
 
           <Link
             to="/settings"
-            className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all ${
+            className={`flex items-center gap-3 rounded-xl text-base font-medium transition-all ${
               isCollapsed ? 'px-3 py-3 justify-center' : 'px-4 py-3'
             } ${
               isActive('/settings')
@@ -125,7 +125,7 @@ const Layout = () => {
                 </div>
                 {!isCollapsed && (
                   <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-sm text-white truncate">{user.email}</p>
+                    <p className="text-base text-white truncate">{user.email}</p>
                   </div>
                 )}
               </button>
@@ -167,9 +167,13 @@ const Layout = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
+      {/* Main Content - with left padding for sidebar */}
+      <main className={`flex-1 overflow-hidden flex items-stretch transition-all duration-300 ${
+        isCollapsed ? 'ml-20' : 'ml-64'
+      }`}>
+        <div className="flex-1 overflow-y-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   )

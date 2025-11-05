@@ -7,22 +7,22 @@ logger = logging.getLogger(__name__)
 
 class AblyService:
     def __init__(self):
-        self.client = AblyRest(api_key=settings.ably_api_key)
+        self.client = AblyRest(key=settings.ably_api_key)
     
-    def publish_message(self, conversation_id: str, message_data: dict):
+    async def publish_message(self, conversation_id: str, message_data: dict):
         """Publish a new message to the conversation channel"""
         try:
             channel = self.client.channels.get(f"conversation:{conversation_id}")
-            channel.publish(name="message", data=message_data)
+            await channel.publish(name="message", data=message_data)
             logger.info(f"Published message to conversation:{conversation_id}")
         except Exception as e:
             logger.error(f"Error publishing message to Ably: {e}")
     
-    def publish_status(self, conversation_id: str, status: str, message: str, metadata: dict = None):
+    async def publish_status(self, conversation_id: str, status: str, message: str, metadata: dict = None):
         """Publish status update to the conversation channel"""
         try:
             channel = self.client.channels.get(f"conversation:{conversation_id}")
-            channel.publish(name="status", data={
+            await channel.publish(name="status", data={
                 "status": status,
                 "message": message,
                 "metadata": metadata or {}
@@ -31,11 +31,11 @@ class AblyService:
         except Exception as e:
             logger.error(f"Error publishing status to Ably: {e}")
     
-    def publish_complete(self, conversation_id: str, goal_id: str, opportunities_count: int):
+    async def publish_complete(self, conversation_id: str, goal_id: str, opportunities_count: int):
         """Publish completion event to the conversation channel"""
         try:
             channel = self.client.channels.get(f"conversation:{conversation_id}")
-            channel.publish(name="complete", data={
+            await channel.publish(name="complete", data={
                 "goal_id": goal_id,
                 "opportunities_count": opportunities_count
             })

@@ -14,11 +14,12 @@ class MessageResponse(BaseModel):
     conversation_id: UUID
     role: str
     content: str
-    metadata_json: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = Field(None, alias="metadata_json")
     created_at: datetime
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class ConversationCreate(BaseModel):

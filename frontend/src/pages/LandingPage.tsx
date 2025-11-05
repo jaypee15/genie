@@ -21,7 +21,17 @@ const LandingPage = () => {
   const { messages: wsMessages, isConnected } = useAbly(currentConversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const allMessages = [...(conversation?.messages || []), ...wsMessages]
+  // Merge and dedupe messages by id, keep chronological order
+  const allMessages = (() => {
+    const byId = new Map<string, typeof wsMessages[number]>()
+    const merged = [...(conversation?.messages || []), ...wsMessages]
+    for (const m of merged) {
+      if (!byId.has(m.id)) byId.set(m.id, m)
+    }
+    return Array.from(byId.values()).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  })()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -84,7 +94,7 @@ const LandingPage = () => {
       {allMessages.length === 0 ? (
         // Welcome Screen - Centered
         <div className="flex-1 flex flex-col items-center justify-center px-6">
-          <div className="w-full max-w-3xl">
+          <div className="w-full max-w-5xl">
             <div className="text-center mb-12">
               <div className="inline-flex items-center gap-3 mb-6">
                 <Sparkles className="w-16 h-16 text-cyan-400" />
@@ -127,7 +137,7 @@ const LandingPage = () => {
         <>
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto px-6 py-8">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-5xl mx-auto">
               <div className="space-y-6">
                 {allMessages.map((message) => (
                   <ChatMessage
@@ -156,7 +166,7 @@ const LandingPage = () => {
 
           {/* Chat Input - Fixed at bottom */}
           <div className="border-t border-gray-800 bg-[#0A0A0A]">
-            <div className="max-w-3xl mx-auto px-6 py-4">
+            <div className="max-w-5xl mx-auto px-6 py-4">
               <ChatInput
                 onSend={handleSendMessage}
                 disabled={isProcessing}
@@ -181,7 +191,7 @@ const LandingPage = () => {
 
       {/* WebSocket Status (for debugging) */}
       {currentConversationId && (
-        <div className="fixed bottom-20 right-4 px-3 py-1 bg-gray-800 rounded-full text-xs">
+        <div className="fixed top-20 right-4 px-3 py-1 bg-gray-800 rounded-full text-xs z-10">
           <span className={`inline-block w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
           {isConnected ? 'Connected' : 'Disconnected'}
         </div>

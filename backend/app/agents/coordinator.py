@@ -222,27 +222,20 @@ class CoordinatorAgent:
             "user_message": acknowledgment
         }
     
-    async def generate_questions(self, initial_description: str) -> List[Dict[str, str]]:
-        """Generate clarifying questions for the initial goal description"""
+    async def generate_questions(self, initial_description: str) -> str:
+        """Generate a conversational clarifying message"""
         try:
             preliminary_analysis = await self.clarifier.clarify_goal(initial_description)
-            questions = await self.clarifier.generate_clarifying_questions(
+            conversational_message = await self.clarifier.generate_clarifying_questions(
                 initial_description, 
                 preliminary_analysis
             )
             
-            formatted_questions = []
-            for q in questions:
-                formatted_questions.append({
-                    "question": q,
-                    "type": "text"
-                })
-            
-            return formatted_questions
+            return conversational_message
             
         except Exception as e:
             logger.error(f"Error generating questions: {e}")
-            return []
+            return "I'd love to help you find the right opportunities! Could you tell me a bit more about what you're looking for?"
     
     async def process_goal_with_answers(
         self,
@@ -277,7 +270,7 @@ class CoordinatorAgent:
             await db.refresh(goal)
             
             if conversation_id:
-                ably_service.publish_status(
+                await ably_service.publish_status(
                     conversation_id,
                     "searching",
                     "Starting opportunity search...",
@@ -327,7 +320,7 @@ class CoordinatorAgent:
             all_opportunities.extend(opportunities)
             
             if conversation_id:
-                ably_service.publish_status(
+                await ably_service.publish_status(
                     conversation_id,
                     "complete",
                     f"Search complete! Found {len(opportunities)} opportunities.",
@@ -337,7 +330,7 @@ class CoordinatorAgent:
         except Exception as e:
             logger.error(f"Error in search with updates: {e}")
             if conversation_id:
-                ably_service.publish_status(
+                await ably_service.publish_status(
                     conversation_id,
                     "error",
                     "Search encountered an error",

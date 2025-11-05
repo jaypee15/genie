@@ -17,7 +17,7 @@ const ChatThread = ({ conversation, isCollapsed }: ChatThreadProps) => {
   return (
     <Link
       to={`/chat/${conversation.id}`}
-      className={`flex items-center gap-3 rounded-xl text-sm transition-all ${
+      className={`flex items-center gap-3 rounded-xl text-base transition-all ${
         isCollapsed ? 'px-3 py-3 justify-center' : 'px-4 py-3'
       } ${
         isActive
