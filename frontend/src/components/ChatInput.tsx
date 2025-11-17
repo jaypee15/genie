@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent } from 'react'
+import { useState, KeyboardEvent, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
 
 interface ChatInputProps {
@@ -9,6 +9,13 @@ interface ChatInputProps {
 
 const ChatInput = ({ onSend, disabled, placeholder }: ChatInputProps) => {
   const [input, setInput] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (!disabled && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [disabled])
 
   const handleSend = () => {
     if (input.trim() && !disabled) {
@@ -27,13 +34,15 @@ const ChatInput = ({ onSend, disabled, placeholder }: ChatInputProps) => {
   return (
     <div className="relative">
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          autoFocus={!disabled}
           placeholder={placeholder || 'Type your message...'}
           disabled={disabled}
           rows={1}
-          className="w-full px-4 py-3 pr-12 bg-[#1A1A1A] border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all resize-none disabled:opacity-50"
+          className="w-full px-4 py-3 pr-12 bg-[#1A1A1A] border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all resize-none disabled:opacity-50 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700 hover:scrollbar-thumb-gray-600"
           style={{
             minHeight: '48px',
             maxHeight: '200px',

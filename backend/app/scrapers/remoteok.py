@@ -6,69 +6,67 @@ logger = logging.getLogger(__name__)
 
 
 class RemoteOKScraper(Crawl4AIBaseScraper):
+    """Scraper for RemoteOK job board"""
     
     def __init__(self):
         super().__init__(
-            source_name="remoteok",
-            base_url="https://remoteok.com"
+            source_name="RemoteOK",
+            base_url="https://remoteok.com",
+            rate_limit=2
         )
     
-    async def scrape(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def scrape(self, keywords: List[str] = None, **filters) -> List[Dict[str, Any]]:
+        """
+        Scrape remote job listings from RemoteOK
+        
+        Args:
+            keywords: List of keywords to filter jobs
+            filters: Additional filters (location, remote, etc.)
+        """
         try:
-            url = f"{self.base_url}/api"
+            # RemoteOK main page has all recent jobs
+            url = f"{self.base_url}/remote-jobs"
             
-            data = await self._crawl_json(url)
+            # Build custom instruction based on keywords
+            keyword_str = ", ".join(keywords) if keywords else "all types"
+            instruction = f"""
+            Extract remote job opportunities from this page.
+            Focus on jobs related to: {keyword_str}
             
-            if not isinstance(data, list):
-                return []
+            For each job listing, extract:
+            - Job title
+            - Company name
+            - Brief description
+            - Location (should be "Remote" or specific location)
+            - Direct URL to the job posting
+            - Tags/skills (e.g., Python, React, etc.)
+            - Salary/compensation if mentioned
             
-            opportunities = []
+            Only extract actual job listings, not ads or navigation elements.
+            """
             
-            for job in data[1:21]:
-                try:
-                    if not isinstance(job, dict):
-                        continue
-                    
-                    title = job.get('position', 'Unknown Position')
-                    company = job.get('company', 'Unknown Company')
-                    description = job.get('description', '')
-                    
-                    job_url = job.get('url', '')
-                    if not job_url.startswith('http'):
-                        job_url = f"{self.base_url}{job_url}"
-                    
-                    tags = job.get('tags', [])
-                    
-                    salary_min = job.get('salary_min')
-                    salary_max = job.get('salary_max')
-                    compensation = {}
-                    if salary_min or salary_max:
-                        compensation = {
-                            "min": salary_min,
-                            "max": salary_max,
-                            "currency": "USD"
-                        }
-                    
-                    opportunity = self._normalize_opportunity(
-                        {
-                            "title": f"{title} at {company}",
-                            "description": description,
-                            "url": job_url,
-                            "location": "Remote",
-                            "tags": tags,
-                            "compensation_info": f"${salary_min}-${salary_max}" if salary_min else None
-                        },
-                        opportunity_type="job"
-                    )
-                    
-                    opportunities.append(opportunity)
-                    
-                except Exception as e:
-                    logger.warning(f"Error parsing job: {e}")
+            opportunities = await self._crawl_with_llm(url, instruction)
+            
+            # Normalize the data
+            normalized = []
+            for opp in opportunities:
+                if not isinstance(opp, dict):
+                    logger.warning(f"RemoteOK: Skipping non-dict item: {type(opp)}")
                     continue
+                normalized.append({
+                    "title": opp.get("title", ""),
+                    "company": opp.get("company_or_organizer", ""),
+                    "description": opp.get("description", ""),
+                    "location": opp.get("location", "Remote"),
+                    "url": opp.get("url", ""),
+                    "tags": opp.get("tags", []),
+                    "compensation": opp.get("compensation_info"),
+                    "source": self.source_name,
+                    "opportunity_type": "job"
+                })
             
-            logger.info(f"Scraped {len(opportunities)} opportunities from RemoteOK")
-            return opportunities
+            logger.info(f"RemoteOK: Found {len(normalized)} opportunities")
+            return normalized
             
         except Exception as e:
             logger.error(f"Error scraping RemoteOK: {e}")

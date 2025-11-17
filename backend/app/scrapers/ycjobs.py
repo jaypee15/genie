@@ -5,43 +5,43 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SessionizeScraper(Crawl4AIBaseScraper):
-    """Scraper for Sessionize speaking opportunities"""
+class YCJobsScraper(Crawl4AIBaseScraper):
+    """Scraper for Y Combinator Jobs board"""
     
     def __init__(self):
         super().__init__(
-            source_name="Sessionize",
-            base_url="https://sessionize.com",
+            source_name="YC Jobs",
+            base_url="https://www.ycombinator.com",
             rate_limit=2
         )
     
     async def scrape(self, keywords: List[str] = None, **filters) -> List[Dict[str, Any]]:
         """
-        Scrape speaking opportunities from Sessionize
+        Scrape job listings from Y Combinator Jobs
         
         Args:
-            keywords: List of keywords/topics to filter
+            keywords: List of keywords to filter jobs
             filters: Additional filters
         """
         try:
-            # Sessionize events page
-            url = f"{self.base_url}/app/events"
+            # YC Jobs page
+            url = f"{self.base_url}/jobs"
             
-            keyword_str = ", ".join(keywords) if keywords else "technology and software"
+            keyword_str = ", ".join(keywords) if keywords else "startup and engineering"
             instruction = f"""
-            Extract conference and event speaking opportunities from this page.
-            Focus on events related to: {keyword_str}
+            Extract job opportunities from Y Combinator companies.
+            Focus on roles related to: {keyword_str}
             
-            For each event/CFP, extract:
-            - Event name
-            - Organizer name
-            - Event description
-            - Location (city or "Online/Virtual")
-            - Direct URL to submit or learn more
-            - Topics/categories
-            - Submission deadline or event date if visible
+            For each job listing, extract:
+            - Job title
+            - Company name (YC-backed startup)
+            - Job description
+            - Location or "Remote"
+            - Direct URL to apply
+            - Required skills/technologies
+            - Salary or equity information if mentioned
             
-            Only extract actual event listings with CFP information.
+            Only extract actual job listings from YC companies.
             """
             
             opportunities = await self._crawl_with_llm(url, instruction)
@@ -50,7 +50,7 @@ class SessionizeScraper(Crawl4AIBaseScraper):
             normalized = []
             for opp in opportunities:
                 if not isinstance(opp, dict):
-                    logger.warning(f"Sessionize: Skipping non-dict item: {type(opp)}")
+                    logger.warning(f"YC Jobs: Skipping non-dict item: {type(opp)}")
                     continue
                 normalized.append({
                     "title": opp.get("title", ""),
@@ -61,12 +61,13 @@ class SessionizeScraper(Crawl4AIBaseScraper):
                     "tags": opp.get("tags", []),
                     "compensation": opp.get("compensation_info"),
                     "source": self.source_name,
-                    "opportunity_type": "speaking"
+                    "opportunity_type": "job"
                 })
             
-            logger.info(f"Sessionize: Found {len(normalized)} opportunities")
+            logger.info(f"YC Jobs: Found {len(normalized)} opportunities")
             return normalized
             
         except Exception as e:
-            logger.error(f"Error scraping Sessionize: {e}")
+            logger.error(f"Error scraping YC Jobs: {e}")
             return []
+

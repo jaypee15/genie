@@ -6,39 +6,66 @@ logger = logging.getLogger(__name__)
 
 
 class PapercallScraper(Crawl4AIBaseScraper):
+    """Scraper for Papercall.io speaking opportunities"""
     
     def __init__(self):
         super().__init__(
-            source_name="papercall",
-            base_url="https://www.papercall.io"
+            source_name="Papercall",
+            base_url="https://www.papercall.io",
+            rate_limit=2
         )
     
-    async def scrape(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def scrape(self, keywords: List[str] = None, **filters) -> List[Dict[str, Any]]:
+        """
+        Scrape speaking opportunities from Papercall.io
+        
+        Args:
+            keywords: List of keywords/topics to filter
+            filters: Additional filters
+        """
         try:
+            # Papercall events page
             url = f"{self.base_url}/events"
             
-            instruction = """
-            Extract all Call for Proposals (CFP) and speaking opportunities.
-            Focus on:
-            - Conference or event names
-            - Event organizers
-            - Speaking opportunity descriptions
-            - Event locations
-            - CFP submission deadlines if visible
-            - Links to detailed event pages
-            Ignore past events or closed CFPs.
+            keyword_str = ", ".join(keywords) if keywords else "tech and software"
+            instruction = f"""
+            Extract conference speaking opportunities (Call for Papers/CFPs) from this page.
+            Focus on events related to: {keyword_str}
+            
+            For each CFP/event, extract:
+            - Conference/event name
+            - Organizer or conference name
+            - Brief description of the event
+            - Location (city/country or "Virtual")
+            - Direct URL to the CFP
+            - Topics/tags (e.g., DevOps, AI, Web Development)
+            - Deadline or event date if mentioned
+            
+            Only extract actual CFP listings, not ads or navigation.
             """
             
-            raw_opportunities = await self._crawl_with_llm(url, instruction)
+            opportunities = await self._crawl_with_llm(url, instruction)
             
-            opportunities = []
-            for raw_opp in raw_opportunities:
-                normalized = self._normalize_opportunity(raw_opp, "speaking")
-                if normalized.get("source_url"):
-                    opportunities.append(normalized)
+            # Normalize the data
+            normalized = []
+            for opp in opportunities:
+                if not isinstance(opp, dict):
+                    logger.warning(f"Papercall: Skipping non-dict item: {type(opp)}")
+                    continue
+                normalized.append({
+                    "title": opp.get("title", ""),
+                    "company": opp.get("company_or_organizer", ""),
+                    "description": opp.get("description", ""),
+                    "location": opp.get("location", ""),
+                    "url": opp.get("url", ""),
+                    "tags": opp.get("tags", []),
+                    "compensation": opp.get("compensation_info"),
+                    "source": self.source_name,
+                    "opportunity_type": "speaking"
+                })
             
-            logger.info(f"Scraped {len(opportunities)} opportunities from Papercall")
-            return opportunities
+            logger.info(f"Papercall: Found {len(normalized)} opportunities")
+            return normalized
             
         except Exception as e:
             logger.error(f"Error scraping Papercall: {e}")

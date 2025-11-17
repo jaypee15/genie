@@ -6,44 +6,66 @@ logger = logging.getLogger(__name__)
 
 
 class WeWorkRemotelyScraper(Crawl4AIBaseScraper):
+    """Scraper for We Work Remotely job board"""
     
     def __init__(self):
         super().__init__(
-            source_name="weworkremotely",
-            base_url="https://weworkremotely.com"
+            source_name="WeWorkRemotely",
+            base_url="https://weworkremotely.com",
+            rate_limit=2
         )
     
-    async def scrape(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def scrape(self, keywords: List[str] = None, **filters) -> List[Dict[str, Any]]:
+        """
+        Scrape remote job listings from We Work Remotely
+        
+        Args:
+            keywords: List of keywords to filter jobs
+            filters: Additional filters
+        """
         try:
-            category = filters.get("category", "programming")
-            url = f"{self.base_url}/categories/remote-{category}-jobs"
+            # Main categories page
+            url = f"{self.base_url}/categories/remote-programming-jobs"
             
-            instruction = """
-            Extract all remote job listings.
-            Focus on:
-            - Job titles
-            - Company names
-            - Job descriptions
-            - Job categories (Programming, Design, Marketing, etc.)
-            - Salary information if available
-            - Links to job postings
-            - Time zones or location preferences if mentioned
-            All jobs are remote, but note any specific region requirements.
+            keyword_str = ", ".join(keywords) if keywords else "all programming and tech"
+            instruction = f"""
+            Extract remote job opportunities from this page.
+            Focus on jobs related to: {keyword_str}
+            
+            For each job listing, extract:
+            - Job title
+            - Company name
+            - Brief job description
+            - Location (usually "Anywhere" or specific timezone)
+            - Direct URL to apply
+            - Job category/tags
+            - Salary range if mentioned
+            
+            Only extract actual job postings, ignore ads and navigation.
             """
             
-            raw_opportunities = await self._crawl_with_llm(url, instruction)
+            opportunities = await self._crawl_with_llm(url, instruction)
             
-            opportunities = []
-            for raw_opp in raw_opportunities:
-                normalized = self._normalize_opportunity(raw_opp, "job")
-                # Ensure remote flag is set
-                normalized["remote"] = True
-                normalized["location"] = normalized.get("location", "Remote")
-                if normalized.get("source_url"):
-                    opportunities.append(normalized)
+            # Normalize the data
+            normalized = []
+            for opp in opportunities:
+                if not isinstance(opp, dict):
+                    logger.warning(f"WeWorkRemotely: Skipping non-dict item: {type(opp)}")
+                    continue
+                normalized.append({
+                    "title": opp.get("title", ""),
+                    "company": opp.get("company_or_organizer", ""),
+                    "description": opp.get("description", ""),
+                    "location": opp.get("location", "Remote"),
+                    "url": opp.get("url", ""),
+                    "tags": opp.get("tags", []),
+                    "compensation": opp.get("compensation_info"),
+                    "source": self.source_name,
+                    "opportunity_type": "job"
+                })
             
-            logger.info(f"Scraped {len(opportunities)} opportunities from WeWorkRemotely")
-            return opportunities
+            logger.info(f"WeWorkRemotely: Found {len(normalized)} opportunities")
+            return normalized
             
         except Exception as e:
             logger.error(f"Error scraping WeWorkRemotely: {e}")

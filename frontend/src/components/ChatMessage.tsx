@@ -1,6 +1,6 @@
+import type { FC } from 'react'
 import { Message, MessageRole } from '@/types/chat'
 import { Sparkles, User } from 'lucide-react'
-import QuestionForm from './QuestionForm'
 
 interface ChatMessageProps {
   message: Message
@@ -8,9 +8,10 @@ interface ChatMessageProps {
   isProcessing?: boolean
 }
 
-const ChatMessage = ({ message, onAnswerQuestions, isProcessing }: ChatMessageProps) => {
+const ChatMessage: FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === MessageRole.USER
   const isStatus = message.metadata?.type === 'status'
+  const isStreaming = Boolean(message.metadata?.streaming)
 
   if (isStatus) {
     return (
@@ -37,21 +38,26 @@ const ChatMessage = ({ message, onAnswerQuestions, isProcessing }: ChatMessagePr
 
       {/* Message Content */}
       <div className={`flex-1 ${isUser ? 'text-right' : 'text-left'}`}>
-        <div
-          className={`inline-block max-w-[80%] px-4 py-3 rounded-xl ${
-            isUser
-              ? 'bg-cyan-500 text-white'
-              : 'bg-[#1A1A1A] border border-gray-800 text-white'
-          }`}
-        >
-          <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p>
+            <div
+              className={`inline-block max-w-[80%] px-4 py-3 rounded-xl ${
+                isUser
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-[#1A1A1A] border border-gray-800 text-white'
+              }`}
+            >
+              <p className="whitespace-pre-wrap text-base leading-relaxed">
+                {message.content}
+                {isStreaming && (
+                  <span className="inline-block w-px h-[1em] bg-current ml-1 align-baseline" />
+                )}
+              </p>
 
           {/* No special rendering needed - clarifying messages are just regular conversational text */}
 
           {/* Completion with Goal Link */}
           {message.metadata?.type === 'completion' && message.metadata.goal_id && (
             <a
-              href={`/goals/${message.metadata.goal_id}/opportunities`}
+              href={`/dashboard/${message.metadata.goal_id}/opportunities`}
               className="mt-3 inline-flex items-center text-sm text-cyan-300 hover:text-cyan-200 underline"
             >
               View Opportunities →
@@ -59,12 +65,14 @@ const ChatMessage = ({ message, onAnswerQuestions, isProcessing }: ChatMessagePr
           )}
         </div>
 
-        <div className="text-sm text-gray-500 mt-1 px-1">
-          {new Date(message.created_at).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </div>
+        {!isStreaming && (
+          <div className="text-sm text-gray-500 mt-1 px-1">
+            {new Date(message.created_at).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

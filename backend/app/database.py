@@ -14,11 +14,15 @@ engine = create_async_engine(
     echo=settings.debug,
     future=True,
     pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600,  # Recycle connections after 1 hour
     connect_args={
         "statement_cache_size": 0,  # Disable prepared statements (as integer)
         "server_settings": {
             "application_name": "genie_backend",
         },
+        "command_timeout": 60,
     }
 )
 

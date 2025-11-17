@@ -9,9 +9,12 @@ interface AuthModalProps {
 }
 
 const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
-  const { signInWithGoogle } = useAuth()
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
@@ -19,14 +22,33 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
     
     try {
       await signInWithGoogle()
-      // After successful sign-in, the auth state will change
-      // and the parent component will handle it
       if (onSuccess) {
         onSuccess()
       }
       onClose()
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')
+      setIsLoading(false)
+    }
+  }
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+    
+    try {
+      if (mode === 'signin') {
+        await signInWithEmail(email, password)
+      } else {
+        await signUpWithEmail(email, password)
+      }
+      if (onSuccess) {
+        onSuccess()
+      }
+      onClose()
+    } catch (err: any) {
+      setError(err.message || `Failed to ${mode === 'signin' ? 'sign in' : 'sign up'}`)
       setIsLoading(false)
     }
   }
@@ -49,10 +71,12 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
         <div className="p-8">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-white mb-2">
-              Sign in to continue
+              {mode === 'signin' ? 'Sign in to continue' : 'Create an account'}
             </h2>
             <p className="text-gray-400">
-              Sign in with your Google account to start discovering opportunities
+              {mode === 'signin' 
+                ? 'Sign in to start discovering opportunities'
+                : 'Sign up to start discovering opportunities'}
             </p>
           </div>
 
@@ -62,6 +86,81 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
             </div>
           )}
 
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+                className="w-full px-4 py-2 bg-[#0A0A0A] border border-gray-800 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent disabled:opacity-50"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                minLength={6}
+                className="w-full px-4 py-2 bg-[#0A0A0A] border border-gray-800 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent disabled:opacity-50"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full px-6 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                mode === 'signin' ? 'Sign In' : 'Sign Up'
+              )}
+            </button>
+          </form>
+
+          {/* Toggle Sign In/Sign Up */}
+          <div className="text-center mb-6">
+            <button
+              onClick={() => {
+                setMode(mode === 'signin' ? 'signup' : 'signin')
+                setError(null)
+              }}
+              disabled={isLoading}
+              className="text-sm text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+            >
+              {mode === 'signin' 
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-800"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-[#1A1A1A] text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          {/* Google Sign In */}
           <button
             onClick={handleGoogleSignIn}
             disabled={isLoading}
@@ -89,12 +188,10 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                   />
                 </svg>
-                Continue with Google
+                Google
               </>
             )}
           </button>
-
-          
         </div>
       </div>
     </div>

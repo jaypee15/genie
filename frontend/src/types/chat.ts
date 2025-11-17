@@ -10,7 +10,15 @@ export interface Message {
   role: MessageRole
   content: string
   metadata?: {
-    type?: 'questions' | 'question_answers' | 'status' | 'completion' | 'error'
+    type?:
+      | 'questions'
+      | 'clarifying'
+      | 'question_answers'
+      | 'status'
+      | 'completion'
+      | 'error'
+      | 'initial_message'
+    streaming?: boolean
     questions?: Question[]
     answers?: QuestionAnswer[]
     status?: string

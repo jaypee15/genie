@@ -2,13 +2,29 @@
 
 Genie is an intelligent agent that continuously discovers relevant career, speaking, and professional growth opportunities based on your personal goals.
 
+## 🎉 Status: Production Ready
+
+All core features are implemented and tested. See [FINAL_STATUS.md](FINAL_STATUS.md) for complete details.
+
+## 📚 Documentation
+
+- **[IMPLEMENTATION_COMPLETE.md](IMPLEMENTATION_COMPLETE.md)** - Complete feature overview and architecture
+- **[FINAL_STATUS.md](FINAL_STATUS.md)** - Implementation status and what works now
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Common commands and troubleshooting
+- **[ABLY_SETUP.md](ABLY_SETUP.md)** - Ably real-time messaging setup
+- **[AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md)** - Multi-agent system details
+- **[CLOUD_SETUP.md](CLOUD_SETUP.md)** - Supabase and Temporal Cloud setup
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
+
 ## Features
 
-- **AI-Powered Goal Clarification**: Natural language processing to understand and refine your goals
-- **Multi-Source Scraping**: Searches across 8+ platforms including job boards, speaking opportunities, and events
+- **Chat-Based Interface**: ChatGPT-style conversational UI for creating goals
+- **AI-Powered Clarification**: Natural language processing with conversational follow-up questions
+- **Multi-Source Scraping**: Searches across 8+ platforms using LLM-powered extraction
 - **Smart Ranking**: Vector similarity search with user feedback integration
-- **Continuous Monitoring**: Daily automated scraping for new opportunities
-- **Beautiful Dashboard**: Modern React interface with real-time updates
+- **Real-time Updates**: Live status updates via Ably during searches
+- **Beautiful Dashboard**: Modern React interface with dark theme
+- **Feedback Learning**: System learns from your preferences
 
 ## Architecture
 

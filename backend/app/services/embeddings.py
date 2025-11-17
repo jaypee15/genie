@@ -1,21 +1,19 @@
-from openai import AsyncOpenAI
-from typing import List, Union
+from typing import List
+from langchain_openai import OpenAIEmbeddings
 from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
-client = AsyncOpenAI(api_key=settings.openai_api_key)
+embeddings_client = OpenAIEmbeddings(
+    api_key=settings.openai_api_key,
+    model="text-embedding-3-small",
+)
 
 
 async def generate_embedding(text: str) -> List[float]:
     try:
-        response = await client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text,
-            encoding_format="float"
-        )
-        return response.data[0].embedding
+        return await embeddings_client.aembed_query(text)
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")
         raise
@@ -23,12 +21,7 @@ async def generate_embedding(text: str) -> List[float]:
 
 async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     try:
-        response = await client.embeddings.create(
-            model="text-embedding-3-small",
-            input=texts,
-            encoding_format="float"
-        )
-        return [item.embedding for item in response.data]
+        return await embeddings_client.aembed_documents(texts)
     except Exception as e:
         logger.error(f"Error generating batch embeddings: {e}")
         raise

@@ -23,17 +23,20 @@ async def search_similar_opportunities(
         )
         goal = result.scalar_one_or_none()
         
-        if not goal or not goal.embedding:
+        # Avoid truthiness checks on arrays (e.g., numpy) which raise ambiguity errors
+        if goal is None:
             return []
+        if getattr(goal, "embedding", None) is None:
+            return []
+        
+        # Calculate distance threshold
+        distance_threshold = 1 - relevance_threshold
         
         query = select(
             Opportunity,
             Opportunity.embedding.cosine_distance(goal.embedding).label("distance")
         ).where(
-            and_(
-                Opportunity.opportunity_type == goal.goal_type,
-                Opportunity.embedding.cosine_distance(goal.embedding) < (1 - relevance_threshold)
-            )
+            Opportunity.opportunity_type == goal.goal_type
         ).order_by("distance").limit(limit)
         
         result = await db.execute(query)

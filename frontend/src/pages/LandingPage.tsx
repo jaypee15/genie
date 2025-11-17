@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCreateConversation, useConversation } from '@/api/chat'
-import { useAbly } from '@/hooks/useAbly'
+import { useChatStream } from '@/hooks/useChatStream'
 import { useAnswerQuestions } from '@/api/chat'
 import ChatMessage from '@/components/ChatMessage'
 import ChatInput from '@/components/ChatInput'
 import AuthModal from '@/components/AuthModal'
 import { useNavigate } from 'react-router-dom'
+import { Message, MessageRole } from '@/types/chat'
 
 const LandingPage = () => {
   const { user, loading: authLoading } = useAuth()
@@ -15,19 +16,62 @@ const LandingPage = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
+  const [isTyping, setIsTyping] = useState(false)
   const createConversation = useCreateConversation()
   const answerQuestions = useAnswerQuestions()
   const { data: conversation } = useConversation(currentConversationId || '')
-  const { messages: wsMessages, isConnected } = useAbly(currentConversationId)
+  const { messages: wsMessages, streamingMessages, isConnected, handleSSEMessage } = useChatStream(currentConversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Merge and dedupe messages by id, keep chronological order
-  const allMessages = (() => {
+  const baseMessages = (() => {
     const byId = new Map<string, typeof wsMessages[number]>()
     const merged = [...(conversation?.messages || []), ...wsMessages]
     for (const m of merged) {
       if (!byId.has(m.id)) byId.set(m.id, m)
     }
+    return Array.from(byId.values()).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  })()
+
+  const streamingEntries: Message[] = (() => {
+    const convId = currentConversationId || conversation?.id
+    if (!convId) return []
+    return Array.from(streamingMessages, ([messageId, data]) => ({
+      id: messageId,
+      conversation_id: convId,
+      role: MessageRole.ASSISTANT,
+      content: data.content,
+      metadata: { type: 'clarifying', streaming: true },
+      created_at: data.startedAt,
+    }))
+  })()
+
+  const displayMessages: Message[] = (() => {
+    // Merge optimistic, base, and streaming messages with deduplication
+    const byId = new Map<string, Message>()
+    const allMessages = [...optimisticMessages, ...baseMessages, ...streamingEntries]
+    
+    for (const msg of allMessages) {
+      // Skip optimistic if we have the real message from backend
+      const isOptimistic = optimisticMessages.some(o => o.id === msg.id)
+      const hasReal = baseMessages.some(m => 
+        m.role === msg.role && 
+        m.content === msg.content && 
+        Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 5000
+      )
+      
+      if (isOptimistic && hasReal) {
+        continue // Skip optimistic, use real message
+      }
+      
+      if (!byId.has(msg.id)) {
+        byId.set(msg.id, msg)
+      }
+    }
+    
     return Array.from(byId.values()).sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
@@ -39,7 +83,7 @@ const LandingPage = () => {
 
   useEffect(() => {
     scrollToBottom()
-  }, [allMessages])
+  }, [displayMessages])
 
   // Auto-send draft message after successful login
   useEffect(() => {
@@ -60,14 +104,43 @@ const LandingPage = () => {
       return
     }
 
+    // Create optimistic user message IMMEDIATELY
+    const tempId = crypto.randomUUID()
+    const optimisticMsg: Message = {
+      id: tempId,
+      conversation_id: 'pending',
+      role: MessageRole.USER,
+      content: message,
+      created_at: new Date().toISOString(),
+    }
+    
+    setOptimisticMessages([optimisticMsg])
+    setIsTyping(true)
+
     try {
       const result = await createConversation.mutateAsync({
         initialMessage: message,
+        onEvent: (event) => {
+          handleSSEMessage(event)
+          // Hide typing indicator when first token arrives
+          if (event.type === 'stream_token') {
+            setIsTyping(false)
+          }
+        },
       })
       setCurrentConversationId(result.id)
-      navigate(`/chat/${result.id}`)
+      
+      // Clear optimistic message after SSE message arrives
+      setTimeout(() => {
+        setOptimisticMessages([])
+      }, 2000)
+      
+      // DON'T navigate - stay on same page for smooth experience
+      // navigate(`/chat/${result.id}`, { replace: true })
     } catch (error) {
       console.error('Error creating conversation:', error)
+      setOptimisticMessages([])
+      setIsTyping(false)
     }
   }
 
@@ -78,6 +151,7 @@ const LandingPage = () => {
       await answerQuestions.mutateAsync({
         conversationId: currentConversationId,
         answers,
+        onEvent: handleSSEMessage,
       })
     } catch (error) {
       console.error('Error answering questions:', error)
@@ -90,10 +164,10 @@ const LandingPage = () => {
     conversation?.status === 'processing'
 
   return (
-    <div className="flex flex-col h-full bg-[#0A0A0A]">
-      {allMessages.length === 0 ? (
+    <div className="flex flex-col h-full bg-[#0A0A0A] transition-all duration-300 ease-in-out">
+      {displayMessages.length === 0 ? (
         // Welcome Screen - Centered
-        <div className="flex-1 flex flex-col items-center justify-center px-6">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 transition-all duration-300 ease-in-out">
           <div className="w-full max-w-5xl">
             <div className="text-center mb-12">
               <div className="inline-flex items-center gap-3 mb-6">
@@ -109,7 +183,7 @@ const LandingPage = () => {
             <div className="mb-8">
               <ChatInput
                 onSend={handleSendMessage}
-                disabled={isProcessing}
+                disabled={false}
                 placeholder="What opportunities are you looking for?"
               />
             </div>
@@ -136,19 +210,24 @@ const LandingPage = () => {
       ) : (
         <>
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-6 py-8">
+          <div className="flex-1 overflow-y-auto px-6 py-8 animate-fadeIn">
             <div className="max-w-5xl mx-auto">
               <div className="space-y-6">
-                {allMessages.map((message) => (
-                  <ChatMessage
+                {displayMessages.map((message, index) => (
+                  <div 
                     key={message.id}
-                    message={message}
-                    onAnswerQuestions={handleAnswerQuestions}
-                    isProcessing={isProcessing}
-                  />
+                    className="animate-slideIn"
+                    style={{ animationDelay: `${Math.min(index * 50, 200)}ms` }}
+                  >
+                    <ChatMessage
+                      message={message}
+                      onAnswerQuestions={handleAnswerQuestions}
+                      isProcessing={isProcessing}
+                    />
+                  </div>
                 ))}
-                {isProcessing && (
-                  <div className="flex gap-4">
+                {(isTyping || (isProcessing && streamingEntries.length === 0)) && (
+                  <div className="flex gap-4 animate-fadeIn">
                     <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
                       <Sparkles className="w-5 h-5 text-cyan-400" />
                     </div>

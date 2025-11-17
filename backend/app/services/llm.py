@@ -1,12 +1,75 @@
-from openai import AsyncOpenAI
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, AsyncGenerator
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 from app.config import settings
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
-client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+def _build_chat_model(
+    model: str,
+    temperature: float,
+    max_tokens: Optional[int] = None,
+    response_format: Optional[Dict[str, str]] = None,
+    streaming: bool = False,
+) -> ChatOpenAI:
+    model_kwargs: Dict[str, Any] = {}
+    if response_format:
+        model_kwargs["response_format"] = response_format
+
+    return ChatOpenAI(
+        api_key=settings.openai_api_key,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        streaming=streaming,
+        model_kwargs=model_kwargs or None,
+    )
+
+
+def _convert_messages(messages: List[Dict[str, str]]) -> List[BaseMessage]:
+    converted: List[BaseMessage] = []
+    for message in messages:
+        role = (message.get("role") or "user").lower()
+        content = message.get("content") or ""
+
+        if role == "system":
+            converted.append(SystemMessage(content=content))
+        elif role == "assistant":
+            converted.append(AIMessage(content=content))
+        else:
+            converted.append(HumanMessage(content=content))
+
+    return converted
+
+
+def _content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if part is None:
+                continue
+            if isinstance(part, dict):
+                if part.get("type") == "text" and "text" in part:
+                    parts.append(part["text"])
+            else:
+                parts.append(str(part))
+        return "".join(parts)
+    return ""
+
+
+def _extract_chunk_text(chunk: AIMessageChunk) -> str:
+    return _content_to_text(chunk.content)
 
 
 async def chat_completion(
@@ -17,20 +80,15 @@ async def chat_completion(
     response_format: Optional[Dict[str, str]] = None
 ) -> str:
     try:
-        kwargs = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-        }
-        
-        if max_tokens:
-            kwargs["max_tokens"] = max_tokens
-            
-        if response_format:
-            kwargs["response_format"] = response_format
-        
-        response = await client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content
+        chat = _build_chat_model(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+        lc_messages = _convert_messages(messages)
+        response = await chat.ainvoke(lc_messages)
+        return _content_to_text(response.content)
     except Exception as e:
         logger.error(f"Error in chat completion: {e}")
         raise
@@ -85,4 +143,30 @@ Provide a natural language summary that highlights:
     ]
     
     return await chat_completion(messages, model="gpt-4o-mini", max_tokens=300)
+
+
+async def chat_completion_stream(
+    messages: List[Dict[str, str]],
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    max_tokens: Optional[int] = None
+) -> AsyncGenerator[str, None]:
+    """Stream chat completion tokens as they are generated"""
+    try:
+        chat = _build_chat_model(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            streaming=True,
+        )
+        lc_messages = _convert_messages(messages)
+
+        async for chunk in chat.astream(lc_messages):
+            token = _extract_chunk_text(chunk)
+            if token:
+                yield token
+                
+    except Exception as e:
+        logger.error(f"Error in streaming chat completion: {e}")
+        raise
 

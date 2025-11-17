@@ -5,7 +5,7 @@ from app.scrapers.sessionize import SessionizeScraper
 from app.scrapers.remoteok import RemoteOKScraper
 from app.scrapers.weworkremotely import WeWorkRemotelyScraper
 from app.scrapers.indeed import IndeedScraper
-from app.scrapers.ycombinator import YCombinatorScraper
+from app.scrapers.ycjobs import YCJobsScraper
 from app.scrapers.angellist import AngelListScraper
 from app.scrapers.eventbrite import EventbriteScraper
 
@@ -15,7 +15,7 @@ SCRAPER_REGISTRY: Dict[str, Crawl4AIBaseScraper] = {
     "remoteok": RemoteOKScraper(),
     "weworkremotely": WeWorkRemotelyScraper(),
     "indeed": IndeedScraper(),
-    "ycombinator": YCombinatorScraper(),
+    "ycombinator": YCJobsScraper(),
     "angellist": AngelListScraper(),
     "eventbrite": EventbriteScraper(),
 }

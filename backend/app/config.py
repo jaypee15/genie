@@ -21,17 +21,19 @@ class Settings(BaseSettings):
     temporal_namespace: str
     temporal_api_key: str
     
-    ably_api_key: str
-    
     app_name: str = "Genie"
     app_version: str = "1.0.0"
     debug: bool = True
     secret_key: str
     
-    allowed_origins: str = "http://localhost:5173,http://localhost:3000"
+    allowed_origins: str = "http://localhost:5174,http://localhost:3000"
     
     scraping_rate_limit: int = 2
     scraping_user_agent: str = "Genie-Bot/1.0"
+    
+    # Search optimization settings
+    min_internal_opportunities: int = 20  # Minimum relevant opportunities before skipping web scrape
+    internal_search_relevance_threshold: float = 0.7  # Minimum similarity score for internal search
     
     @property
     def allowed_origins_list(self) -> List[str]:

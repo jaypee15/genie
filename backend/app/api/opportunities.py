@@ -38,7 +38,7 @@ async def list_opportunities(
             opportunities = []
             for item in result["opportunities"]:
                 opp = item["opportunity"]
-                opp_dict = OpportunityResponse.from_orm(opp).dict()
+                opp_dict = OpportunityResponse.model_validate(opp).model_dump()
                 opp_dict["relevance_score"] = item["relevance_score"]
                 opportunities.append(OpportunityResponse(**opp_dict))
             return opportunities

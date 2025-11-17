@@ -1,5 +1,5 @@
-from typing import Dict, Any, List, Optional
-from app.services.llm import structured_completion, chat_completion
+from typing import Dict, Any, List, Optional, AsyncGenerator
+from app.services.llm import structured_completion, chat_completion, chat_completion_stream
 from app.services.embeddings import generate_embedding
 import logging
 
@@ -86,6 +86,44 @@ class ClarifierAgent:
             logger.error(f"Error generating clarifying questions: {e}")
             return "I'd love to help you find the right opportunities! Could you tell me a bit more about what you're looking for?"
     
+    async def generate_clarifying_questions_stream(
+        self, 
+        initial_description: str, 
+        preliminary_analysis: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
+        """Stream a conversational message with clarifying questions"""
+        prompt = f"""Based on this user goal: "{initial_description}"
+        
+        And this preliminary analysis:
+        {preliminary_analysis}
+        
+        Write a brief, friendly intro followed by 2-3 numbered clarifying questions to better understand what they're looking for.
+        
+        Format example:
+        "I'd love to help you find the perfect opportunities! To narrow things down:
+        
+        1. What specific technologies or areas are you most interested in?
+        2. Are you looking for remote positions, or do you have a location preference?
+        3. What's your ideal company size or type?"
+        
+        CRITICAL RULES:
+        - End IMMEDIATELY after the last question
+        - Do NOT add closing phrases like "Looking forward to...", "Let me know...", "Thanks!", or "Can't wait..."
+        - Just: brief intro + 2-3 numbered questions
+        - No pleasantries at the end"""
+        
+        messages = [
+            {"role": "system", "content": "You are a friendly AI assistant helping someone find opportunities. You ask clarifying questions in a natural, conversational way."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        try:
+            async for token in chat_completion_stream(messages, model="gpt-4o-mini", temperature=0.8):
+                yield token
+        except Exception as e:
+            logger.error(f"Error generating clarifying questions stream: {e}")
+            yield "I'd love to help you find the right opportunities! Could you tell me a bit more about what you're looking for?"
+    
     async def refine_goal_with_answers(
         self,
         initial_goal: Dict[str, Any],
@@ -113,6 +151,52 @@ class ClarifierAgent:
         except Exception as e:
             logger.error(f"Error refining goal: {e}")
             return initial_goal
+    
+    def classify_intent(self, text: str) -> str:
+        """
+        Lightweight rule-based intent classification to route user turns:
+        - 'meta' for UX/config feedback
+        - 'greeting' for salutations
+        - 'cancel' for cancellations
+        - 'goal' for likely goal statements
+        - 'unknown' fallback
+        """
+        t = (text or "").strip().lower()
+        if not t:
+            return "unknown"
+        # Meta / UX feedback heuristics
+        meta_markers = [
+            "don't show", "dont show", "no thinking", "thinking indicator", "loading indicator",
+            "ui", "ux", "interface", "cursor color", "auto focus", "autofocus", "layout", "design"
+        ]
+        if any(k in t for k in meta_markers):
+            return "meta"
+        # Greetings
+        if t in {"hi", "hello", "hey", "hey there", "yo"} or t.startswith(("hi ", "hello ", "hey ")):
+            return "greeting"
+        # Cancel / stop
+        if any(k in t for k in ["stop", "cancel", "never mind", "nevermind", "forget it"]):
+            return "cancel"
+        # Likely a goal if contains opportunity terms
+        if any(k in t for k in ["job", "role", "position", "speaking", "conference", "event", "grant", "opportunity"]):
+            return "goal"
+        return "unknown"
+    
+    def is_goal_complete(self, goal: Dict[str, Any]) -> bool:
+        """
+        Check if the refined goal has the minimum fields to run a useful search.
+        """
+        if not goal:
+            return False
+        goal_type = (goal.get("goal_type") or "").strip()
+        keywords = goal.get("keywords") or []
+        location = (goal.get("location") or "").strip()
+        # Require: goal_type and at least one of keywords/location/remote specified
+        if goal_type not in {"job", "speaking", "grant", "event"}:
+            return False
+        has_keywords = isinstance(keywords, list) and len([k for k in keywords if str(k).strip()]) >= 1
+        has_location = bool(location) or bool(goal.get("remote") is True)
+        return has_keywords or has_location
     
     async def generate_goal_embedding(self, goal_data: Dict[str, Any]) -> List[float]:
         embedding_text = f"""{goal_data.get('original_description', '')}
@@ -188,4 +272,81 @@ class ClarifierAgent:
         message += ".\n\nI'll search across multiple platforms and notify you when I find relevant opportunities."
         
         return message
+    
+    async def generate_next_question(
+        self,
+        collected_info: Dict[str, Any],
+        asked_fields: List[str]
+    ) -> Optional[str]:
+        """Generate the next single clarifying question based on what's missing"""
+        required = ["goal_type", "keywords", "location"]
+        missing = [f for f in required if not collected_info.get(f) and f not in asked_fields]
+        
+        if not missing:
+            return None
+        
+        next_field = missing[0]
+        
+        prompts = {
+            "goal_type": "What type of opportunities are you looking for—speaking engagements, jobs, grants, or events?",
+            "keywords": "What specific topics or technologies are you interested in?",
+            "location": "Are you open to remote opportunities, or do you prefer a specific location?"
+        }
+        
+        return prompts.get(next_field, "Could you tell me more about what you're looking for?")
+    
+    async def extract_partial_info(
+        self,
+        user_text: str,
+        context: str,
+        collected_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract any new info from user's response, even if incomplete"""
+        prompt = f"""Previous context: {context}
+
+Collected so far: {collected_info}
+
+User's latest message: "{user_text}"
+
+Extract ANY new information about:
+- goal_type (speaking/job/grant/event)
+- keywords/topics (array of strings)
+- location (string) or remote (boolean)
+- experience_level (string)
+
+Return JSON with ONLY the NEW fields found. If nothing new, return empty dict {{}}.
+Do not repeat already-collected fields."""
+        
+        messages = [
+            {"role": "system", "content": "You extract structured information from conversational text."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        try:
+            extracted = await structured_completion(messages, model="gpt-4o-mini")
+            updated = {**collected_info, **extracted}
+            return updated
+        except Exception as e:
+            logger.error(f"Error extracting partial info: {e}")
+            return collected_info
+    
+    async def generate_confirmation_summary(self, goal_data: Dict[str, Any]) -> str:
+        """Generate a confirmation summary before starting search"""
+        goal_type = goal_data.get("goal_type", "opportunities")
+        keywords = goal_data.get("keywords", [])
+        location = goal_data.get("location", "any location")
+        remote = goal_data.get("remote", False)
+        
+        summary = f"Got it! Looking for {goal_type}"
+        
+        if keywords:
+            summary += f" in {', '.join(keywords[:3])}"
+        
+        if remote:
+            summary += " (remote)"
+        elif location and location.lower() not in ["any", "remote", ""]:
+            summary += f" in {location}"
+        
+        summary += ". Starting search now..."
+        return summary
 

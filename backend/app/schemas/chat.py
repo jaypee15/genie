@@ -14,12 +14,12 @@ class MessageResponse(BaseModel):
     conversation_id: UUID
     role: str
     content: str
-    metadata: Optional[Dict[str, Any]] = Field(None, alias="metadata_json")
+    metadata: Optional[Dict[str, Any]] = Field(None, validation_alias="metadata_json", serialization_alias="metadata")
     created_at: datetime
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class ConversationCreate(BaseModel):
@@ -35,8 +35,9 @@ class ConversationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class ConversationWithMessages(ConversationResponse):

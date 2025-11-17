@@ -87,10 +87,10 @@ const Layout = () => {
                 ? 'bg-gray-800 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
             }`}
-            title="Your Goals"
+            title="Dashboard"
           >
             <Home className="w-5 h-5 flex-shrink-0" />
-            {!isCollapsed && <span>Your Goals</span>}
+            {!isCollapsed && <span>Dashboard</span>}
           </Link>
 
           <Link

@@ -1,15 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
+from typing import List, AsyncGenerator
 from uuid import UUID
 import logging
-import json
-from ably import AblyRest
-import inspect
+import uuid as uuid_lib
 
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.models.chat import Conversation, Message
 from app.models.user import User
 from app.models.goal import Goal, GoalStatus, GoalType
@@ -22,15 +21,20 @@ from app.schemas.chat import (
     AnswerQuestionsRequest
 )
 from app.agents.coordinator import CoordinatorAgent
-from app.services.ably_service import ably_service
 from app.auth import get_current_user, get_user_email_from_token
 from app.services.user_service import get_or_create_user
-from app.config import settings
+from app.services.streaming import (
+    format_sse,
+    status_event,
+    stream_end_event,
+    complete_event,
+    message_event,
+    error_event
+)
 
 router = APIRouter()
 coordinator = CoordinatorAgent()
 logger = logging.getLogger(__name__)
-ably_auth = AblyRest(key=settings.ably_api_key)
 
 
 def generate_title_from_message(message: str, max_words: int = 6) -> str:
@@ -42,40 +46,14 @@ def generate_title_from_message(message: str, max_words: int = 6) -> str:
     return title
 
 
-@router.get("/realtime/token")
-async def get_ably_token(user_id: UUID = Depends(get_current_user)):
-    """Generate Ably token with subscribe-only capability for user's conversations"""
-    capability = {"conversation:*": ["subscribe"]}
-    token_request = ably_auth.auth.create_token_request(
-        token_params={
-            "client_id": str(user_id),
-            "capability": json.dumps(capability),
-            "ttl": 3600000,  # 1 hour in ms
-        }
-    )
-    # Support both sync and async return types
-    if inspect.isawaitable(token_request):
-        token_request = await token_request
-    # Ensure JSON serializable output
-    if hasattr(token_request, "to_dict"):
-        return token_request.to_dict()  # type: ignore[attr-defined]
-    if isinstance(token_request, dict):
-        return token_request
-    # Fallback: try to coerce to dict
-    try:
-        return dict(token_request)  # type: ignore[arg-type]
-    except Exception:
-        return token_request
-
-
-@router.post("/", response_model=ConversationResponse)
+@router.post("/", response_class=StreamingResponse)
 async def create_conversation(
     conversation_data: ConversationCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())
 ):
+    """Create conversation and stream clarifying questions"""
     # Get or create user on first conversation
     email = get_user_email_from_token(credentials.credentials)
     if email:
@@ -97,45 +75,58 @@ async def create_conversation(
     db.add(user_message)
     await db.commit()
     
-    background_tasks.add_task(
-        process_initial_message,
-        str(conversation.id),
-        conversation_data.initial_message
-    )
-    
-    return conversation
-
-
-async def process_initial_message(conversation_id: str, initial_message: str):
-    from app.database import AsyncSessionLocal
-    
-    async with AsyncSessionLocal() as db:
+    async def event_stream():
+        """Generate SSE events for the initial conversation"""
         try:
-            conversational_message = await coordinator.generate_questions(initial_message)
+            message_id = str(uuid_lib.uuid4())
+            full_content = ""
             
-            assistant_message = Message(
-                conversation_id=UUID(conversation_id),
-                role="assistant",
-                content=conversational_message,
-                metadata_json={"type": "clarifying"}
-            )
-            db.add(assistant_message)
-            await db.commit()
+            # Stream clarifying questions token by token
+            async for token in coordinator.generate_questions_stream(conversation_data.initial_message):
+                full_content += token
+                yield format_sse("stream_token", {
+                    "message_id": message_id,
+                    "token": token
+                })
             
-            await ably_service.publish_message(conversation_id, {
-                "type": "message",
-                "message": {
-                    "id": str(assistant_message.id),
-                    "conversation_id": conversation_id,
-                    "role": "assistant",
-                    "content": assistant_message.content,
-                    "metadata": assistant_message.metadata_json,
-                    "created_at": assistant_message.created_at.isoformat()
-                }
-            })
-            
+            # Save complete message to database
+            async with AsyncSessionLocal() as session:
+                assistant_message = Message(
+                    id=UUID(message_id),
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=full_content,
+                    metadata_json={"type": "clarifying"}
+                )
+                session.add(assistant_message)
+                await session.commit()
+                await session.refresh(assistant_message)
+                
+                # Send stream_end event
+                yield stream_end_event(
+                    message_id,
+                    full_content,
+                    assistant_message.created_at.isoformat()
+                )
+                
+                # Send conversation ID so frontend knows where to navigate
+                yield format_sse("conversation_created", {
+                    "conversation_id": str(conversation.id),
+                    "status": "clarifying"
+                })
+                
         except Exception as e:
-            logger.error(f"Error processing initial message: {e}")
+            logger.error(f"Error streaming initial message: {e}", exc_info=True)
+            yield error_event("An error occurred while processing your message")
+    
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @router.get("/", response_model=List[ConversationResponse])
@@ -218,14 +209,14 @@ async def send_message(
     return message
 
 
-@router.post("/{conversation_id}/answer-questions")
+@router.post("/{conversation_id}/answer-questions", response_class=StreamingResponse)
 async def answer_questions(
     conversation_id: UUID,
     answers_data: AnswerQuestionsRequest,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user)
 ):
+    """Answer clarifying questions and stream response/search progress"""
     result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id)
     )
@@ -238,8 +229,8 @@ async def answer_questions(
     if conversation.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    answers_text = "\n".join([f"Q: {qa.question}\nA: {qa.answer}" for qa in answers_data.answers])
-    
+    # Save user's answer
+    answers_text = "\n\n".join([qa.answer for qa in answers_data.answers])
     user_message = Message(
         conversation_id=conversation_id,
         role="user",
@@ -247,114 +238,53 @@ async def answer_questions(
         metadata_json={"type": "question_answers", "answers": [qa.dict() for qa in answers_data.answers]}
     )
     db.add(user_message)
-    
-    conversation.status = "processing"
     await db.commit()
+    await db.refresh(user_message)
     
-    background_tasks.add_task(
-        process_goal_from_answers,
-        str(conversation.id),
-        str(conversation.user_id),
-        answers_data.answers
-    )
-    
-    return {"message": "Processing your goal..."}
-
-
-async def process_goal_from_answers(conversation_id: str, user_id: str, answers: List):
-    from app.database import AsyncSessionLocal
-    
-    async with AsyncSessionLocal() as db:
+    async def event_stream():
+        """Generate SSE events for goal processing"""
         try:
-            result = await db.execute(
-                select(Conversation).where(Conversation.id == UUID(conversation_id))
-            )
-            conversation = result.scalar_one_or_none()
-            
-            messages_result = await db.execute(
-                select(Message)
-                .where(Message.conversation_id == UUID(conversation_id))
-                .order_by(Message.created_at)
-            )
-            messages = messages_result.scalars().all()
-            
-            initial_message = next((m.content for m in messages if m.role == "user"), "")
-            
-            processing_message = Message(
-                conversation_id=UUID(conversation_id),
-                role="assistant",
-                content="Great! I'm now searching for opportunities that match your criteria...",
-                metadata_json={"type": "status", "status": "processing"}
-            )
-            db.add(processing_message)
-            await db.commit()
-            
-            await ably_service.publish_message(conversation_id, {
-                "type": "message",
-                "message": {
-                    "id": str(processing_message.id),
-                    "conversation_id": conversation_id,
-                    "role": "assistant",
-                    "content": processing_message.content,
-                    "metadata": processing_message.metadata_json,
-                    "created_at": processing_message.created_at.isoformat()
-                }
+            # First, emit the user's message so frontend sees it immediately
+            yield message_event({
+                "id": str(user_message.id),
+                "conversation_id": str(conversation_id),
+                "role": "user",
+                "content": user_message.content,
+                "metadata": user_message.metadata_json,
+                "created_at": user_message.created_at.isoformat()
             })
             
-            qa_pairs = [{"question": qa.question, "answer": qa.answer} for qa in answers]
-            goal_result = await coordinator.process_goal_with_answers(
-                db, UUID(user_id), initial_message, qa_pairs, conversation_id
-            )
-            
-            if goal_result["success"]:
-                goal_id = goal_result["goal_id"]
-                
-                stmt = select(Conversation).where(Conversation.id == UUID(conversation_id))
-                result = await db.execute(stmt)
-                conv = result.scalar_one_or_none()
-                if conv:
-                    conv.goal_id = UUID(goal_id)
-                    conv.status = "completed"
-                    conv.title = initial_message[:50]
-                    await db.commit()
-                
-                completion_message = Message(
-                    conversation_id=UUID(conversation_id),
-                    role="assistant",
-                    content=goal_result["user_message"],
-                    metadata_json={"type": "completion", "goal_id": goal_id}
+            async with AsyncSessionLocal() as session:
+                # Get initial message for context
+                messages_result = await session.execute(
+                    select(Message)
+                    .where(Message.conversation_id == conversation_id)
+                    .order_by(Message.created_at)
                 )
-                db.add(completion_message)
-                await db.commit()
+                messages = messages_result.scalars().all()
+                initial_message = next((m.content for m in messages if m.role == "user"), "")
                 
-                await ably_service.publish_message(conversation_id, {
-                    "type": "message",
-                    "message": {
-                        "id": str(completion_message.id),
-                        "conversation_id": conversation_id,
-                        "role": "assistant",
-                        "content": completion_message.content,
-                        "metadata": completion_message.metadata_json,
-                        "created_at": completion_message.created_at.isoformat()
-                    }
-                })
+                qa_pairs = [{"question": qa.question, "answer": qa.answer} for qa in answers_data.answers]
                 
-                await ably_service.publish_complete(
-                    conversation_id,
-                    goal_id,
-                    goal_result.get("opportunities_found", 0)
-                )
-            
+                # Process the goal with answers - this will yield events
+                async for event_type, event_data in coordinator.process_goal_with_answers_stream(
+                    session,
+                    user_id,
+                    initial_message,
+                    qa_pairs,
+                    str(conversation_id)
+                ):
+                    yield format_sse(event_type, event_data)
+                
         except Exception as e:
-            logger.error(f"Error processing goal from answers: {e}")
-            
-            error_message = Message(
-                conversation_id=UUID(conversation_id),
-                role="assistant",
-                content="I encountered an error while processing your goal. Please try again.",
-                metadata_json={"type": "error"}
-            )
-            db.add(error_message)
-            await db.commit()
-
-
+            logger.error(f"Error processing answers: {e}", exc_info=True)
+            yield error_event("An error occurred while processing your answers")
+    
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
