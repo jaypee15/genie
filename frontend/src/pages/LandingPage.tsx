@@ -7,12 +7,10 @@ import { useAnswerQuestions } from '@/api/chat'
 import ChatMessage from '@/components/ChatMessage'
 import ChatInput from '@/components/ChatInput'
 import AuthModal from '@/components/AuthModal'
-import { useNavigate } from 'react-router-dom'
 import { Message, MessageRole } from '@/types/chat'
 
 const LandingPage = () => {
   const { user, loading: authLoading } = useAuth()
-  const navigate = useNavigate()
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
