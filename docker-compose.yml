@@ -40,7 +40,7 @@ services:
       - ABLY_API_KEY=${ABLY_API_KEY}
     volumes:
       - ./backend:/app
-    command: python app/worker.py
+    command: python -m app.worker
 
   frontend:
     build:
