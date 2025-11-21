@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 embeddings_client = GoogleGenerativeAIEmbeddings(
     google_api_key=settings.google_api_key,
-    model="models/embedding-001",
+    model="models/gemini-embedding-001",
 )
 
 

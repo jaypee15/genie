@@ -5,9 +5,9 @@ on:
     branches: [ "main" ]
 
 env:
-  API_IMAGE_NAME: weaver-api
-  WORKER_IMAGE_NAME: weaver-worker
-  FRONTEND_IMAGE_NAME: weaver-frontend
+  API_IMAGE_NAME: genie-api
+  WORKER_IMAGE_NAME: genie-worker
+  FRONTEND_IMAGE_NAME: genie-frontend
 
 jobs:
   build-and-push:
@@ -159,7 +159,7 @@ jobs:
             --region ${{ secrets.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --port 80 \
+            --port 5174 \
             --cpu 1 \
             --memory 512Mi \
             --min-instances 0 \
