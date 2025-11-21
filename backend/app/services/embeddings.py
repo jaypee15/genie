@@ -13,7 +13,10 @@ embeddings_client = GoogleGenerativeAIEmbeddings(
 
 async def generate_embedding(text: str) -> List[float]:
     try:
-        return await embeddings_client.aembed_query(text)
+        return await embeddings_client.aembed_query(
+            text,
+            output_dimensionality=1536,
+            )
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")
         raise
@@ -21,7 +24,10 @@ async def generate_embedding(text: str) -> List[float]:
 
 async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     try:
-        return await embeddings_client.aembed_documents(texts)
+        return await embeddings_client.aembed_documents(
+            texts,
+            output_dimensionality=1536,
+            )
     except Exception as e:
         logger.error(f"Error generating batch embeddings: {e}")
         raise
