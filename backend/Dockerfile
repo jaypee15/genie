@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
 WORKDIR /app
 
@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     wget \
     gnupg \
-    # Playwright dependencies
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -31,7 +30,6 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright with retry logic and fallback
 RUN playwright install chromium || \
     (echo "Playwright install failed, retrying..." && sleep 5 && playwright install chromium) || \
     echo "Playwright installation skipped - will be installed at runtime"
@@ -42,8 +40,13 @@ COPY . .
 
 ENV PYTHONPATH=/app
 
-EXPOSE 8000
-
 ENTRYPOINT ["/app/startup.sh"]
+
+FROM base AS api
+EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+FROM base AS worker
+EXPOSE 8080
+CMD ["python", "-m", "app.worker"]
 

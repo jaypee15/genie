@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str
     database_url: str
     
-    openai_api_key: str
+    google_api_key: str
     
     temporal_address: str
     temporal_namespace: str

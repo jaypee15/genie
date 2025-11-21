@@ -92,8 +92,8 @@ class Crawl4AIBaseScraper(ABC):
                 """
                 
                 extraction_strategy = LLMExtractionStrategy(
-                    provider="openai/gpt-4o-mini",
-                    api_token=settings.openai_api_key,
+                    provider="google/gemini-1.5-flash",
+                    api_token=settings.google_api_key,
                     schema=OpportunitySchema.model_json_schema(),
                     extraction_type="schema",
                     instruction=instruction or default_instruction,

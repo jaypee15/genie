@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional, AsyncGenerator
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -20,18 +20,20 @@ def _build_chat_model(
     max_tokens: Optional[int] = None,
     response_format: Optional[Dict[str, str]] = None,
     streaming: bool = False,
-) -> ChatOpenAI:
+) -> ChatGoogleGenerativeAI:
     model_kwargs: Dict[str, Any] = {}
-    if response_format:
-        model_kwargs["response_format"] = response_format
+    
+    # Note: Gemini doesn't support response_format like OpenAI's JSON mode
+    # Instead, we'll use system prompts to request JSON output
+    if response_format and response_format.get("type") == "json_object":
+        logger.warning("Gemini doesn't support native JSON mode - using prompt-based JSON formatting")
 
-    return ChatOpenAI(
-        api_key=settings.openai_api_key,
+    return ChatGoogleGenerativeAI(
+        google_api_key=settings.google_api_key,
         model=model,
         temperature=temperature,
-        max_tokens=max_tokens,
-        streaming=streaming,
-        model_kwargs=model_kwargs or None,
+        max_output_tokens=max_tokens,
+        convert_system_message_to_human=True,  # Gemini requires system messages to be converted
     )
 
 
@@ -74,7 +76,7 @@ def _extract_chunk_text(chunk: AIMessageChunk) -> str:
 
 async def chat_completion(
     messages: List[Dict[str, str]],
-    model: str = "gpt-4",
+    model: str = "gemini-1.5-flash",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     response_format: Optional[Dict[str, str]] = None
@@ -96,32 +98,39 @@ async def chat_completion(
 
 async def structured_completion(
     messages: List[Dict[str, str]],
-    model: str = "gpt-4o-mini",
+    model: str = "gemini-1.5-flash",
     temperature: float = 0.7
 ) -> Dict[str, Any]:
     try:
-        # First try with JSON mode (supported by -o models)
+        # Gemini doesn't have native JSON mode, so we add instructions to the prompt
+        # Ensure the last user message requests JSON format
+        enhanced_messages = messages.copy()
+        if enhanced_messages and enhanced_messages[-1].get("role") == "user":
+            original_content = enhanced_messages[-1]["content"]
+            enhanced_messages[-1]["content"] = f"{original_content}\n\nIMPORTANT: Respond with ONLY valid JSON. No markdown, no explanations, just the JSON object."
+        
         response = await chat_completion(
-            messages=messages,
+            messages=enhanced_messages,
             model=model,
             temperature=temperature,
-            response_format={"type": "json_object"}
+            response_format=None  # Gemini doesn't support this parameter
         )
-        return json.loads(response)
+        
+        # Clean up response - sometimes Gemini adds markdown code blocks
+        cleaned_response = response.strip()
+        if cleaned_response.startswith("```json"):
+            cleaned_response = cleaned_response[7:]
+        if cleaned_response.startswith("```"):
+            cleaned_response = cleaned_response[3:]
+        if cleaned_response.endswith("```"):
+            cleaned_response = cleaned_response[:-3]
+        cleaned_response = cleaned_response.strip()
+        
+        return json.loads(cleaned_response)
     except Exception as e:
         logger.error(f"Error in structured completion: {e}")
-        # Fallback: try without response_format and parse best-effort
-        try:
-            response = await chat_completion(
-                messages=messages,
-                model=model,
-                temperature=temperature,
-                response_format=None
-            )
-            return json.loads(response)
-        except Exception as inner:
-            logger.error(f"Fallback parsing failed: {inner}")
-            raise
+        logger.error(f"Response was: {response if 'response' in locals() else 'N/A'}")
+        raise
 
 
 async def summarize_opportunities(opportunities: List[Dict[str, Any]]) -> str:
@@ -142,12 +151,12 @@ Provide a natural language summary that highlights:
         {"role": "user", "content": prompt}
     ]
     
-    return await chat_completion(messages, model="gpt-4o-mini", max_tokens=300)
+    return await chat_completion(messages, model="gemini-1.5-flash", max_tokens=300)
 
 
 async def chat_completion_stream(
     messages: List[Dict[str, str]],
-    model: str = "gpt-4o-mini",
+    model: str = "gemini-1.5-flash",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None
 ) -> AsyncGenerator[str, None]:

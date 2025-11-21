@@ -1,13 +1,13 @@
 from typing import List
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
-embeddings_client = OpenAIEmbeddings(
-    api_key=settings.openai_api_key,
-    model="text-embedding-3-small",
+embeddings_client = GoogleGenerativeAIEmbeddings(
+    google_api_key=settings.google_api_key,
+    model="models/embedding-001",
 )
 
 
