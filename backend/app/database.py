@@ -46,6 +46,12 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
+    """
+    Initialize database with required extensions and tables.
+    
+    Note: This creates tables from SQLAlchemy models. For schema changes,
+    use Alembic migrations which are run automatically on startup.
+    """
     # Import models to register them with Base
     from app.models import user, goal, opportunity, feedback, chat
     
@@ -62,7 +68,9 @@ async def init_db():
         except Exception as e:
             logger.warning(f"Could not create uuid-ossp extension (may already exist): {e}")
     
+    # Note: create_all() is idempotent - it only creates tables that don't exist
+    # It does NOT modify existing tables. Use Alembic migrations for schema changes.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created/verified")
+        logger.info("Database tables created/verified (via SQLAlchemy metadata)")
 

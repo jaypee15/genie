@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     temporal_address: str
     temporal_namespace: str
     temporal_api_key: str
+    temporal_use_tls: bool = True
     
     app_name: str = "Genie"
     app_version: str = "1.0.0"

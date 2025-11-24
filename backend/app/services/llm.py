@@ -76,7 +76,7 @@ def _extract_chunk_text(chunk: AIMessageChunk) -> str:
 
 async def chat_completion(
     messages: List[Dict[str, str]],
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-2.5-flash",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     response_format: Optional[Dict[str, str]] = None
@@ -98,7 +98,7 @@ async def chat_completion(
 
 async def structured_completion(
     messages: List[Dict[str, str]],
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-2.5-flash",
     temperature: float = 0.7
 ) -> Dict[str, Any]:
     try:
@@ -151,12 +151,12 @@ Provide a natural language summary that highlights:
         {"role": "user", "content": prompt}
     ]
     
-    return await chat_completion(messages, model="gemini-1.5-flash", max_tokens=300)
+    return await chat_completion(messages, model="gemini-1.2-flash", max_tokens=300)
 
 
 async def chat_completion_stream(
     messages: List[Dict[str, str]],
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-2.5-flash",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None
 ) -> AsyncGenerator[str, None]:

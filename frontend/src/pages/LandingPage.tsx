@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCreateConversation, useConversation } from '@/api/chat'
@@ -10,6 +11,7 @@ import AuthModal from '@/components/AuthModal'
 import { Message, MessageRole } from '@/types/chat'
 
 const LandingPage = () => {
+  const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
@@ -92,6 +94,20 @@ const LandingPage = () => {
       handleSendMessage(messageCopy)
     }
   }, [user, draftMessage, authLoading])
+
+  // Auto-navigate when goal processing is complete
+  useEffect(() => {
+    // Check if the last message contains the completion metadata
+    const lastMsg = displayMessages[displayMessages.length - 1]
+    
+    if (lastMsg?.metadata?.type === 'completion' && lastMsg.metadata.goal_id) {
+      // Add a small delay for the user to read the "I'm starting..." message
+      const timer = setTimeout(() => {
+        navigate(`/goals/${lastMsg.metadata?.goal_id}/opportunities`)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [displayMessages, navigate])
 
   const handleSendMessage = async (message: string) => {
     // Check if user is authenticated

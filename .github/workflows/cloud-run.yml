@@ -93,8 +93,8 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 8000 \
-            --cpu 1 \
-            --memory 1Gi \
+            --cpu 2 \
+            --memory 4Gi \
             --min-instances 1 \
             --max-instances 10
 
@@ -126,8 +126,8 @@ jobs:
             --platform managed \
             --no-allow-unauthenticated \
             --port 8080 \
-            --cpu 1 \
-            --memory 1Gi \
+            --cpu 2 \
+            --memory 4Gi \
             --min-instances 1 \
             --max-instances 1 \
             --no-cpu-throttling

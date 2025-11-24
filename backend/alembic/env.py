@@ -18,7 +18,9 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-config.set_main_option('sqlalchemy.url', settings.database_url)
+# Convert async URL to sync URL for Alembic
+sync_database_url = settings.database_url.replace('postgresql+asyncpg://', 'postgresql://')
+config.set_main_option('sqlalchemy.url', sync_database_url)
 
 
 def run_migrations_offline() -> None:

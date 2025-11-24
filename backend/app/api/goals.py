@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
+from typing import List, cast
 from uuid import UUID
 
 from app.database import get_db
@@ -11,6 +11,17 @@ from app.schemas.goal import GoalCreate, GoalResponse, GoalUpdate
 from app.agents.coordinator import CoordinatorAgent
 from app.auth import get_current_user
 
+from app.services.temporal import get_temporal_client
+from app.workflows.matching import GoalProcessingWorkflow, GoalRefreshWorkflow
+
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 coordinator = CoordinatorAgent()
 
@@ -18,7 +29,6 @@ coordinator = CoordinatorAgent()
 @router.post("/", response_model=GoalResponse)
 async def create_goal(
     goal_data: GoalCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user)
 ):
@@ -32,12 +42,19 @@ async def create_goal(
     await db.commit()
     await db.refresh(goal)
     
-    background_tasks.add_task(
-        process_goal_background,
-        str(goal.id),
-        user_id,
-        goal_data.description
-    )
+    # Trigger workflow (fire and forget)
+    try: 
+        client = await get_temporal_client()
+
+        await client.start_workflow(
+            GoalProcessingWorkflow.run,
+            args=[str(goal.id), str(user_id), goal_data.description],
+            id=f"goal-process-{goal.id}",
+            task_queue="genie-tasks",
+        )
+    except Exception as e:
+    
+        logger.error(f"Error starting workflow for goal {goal.id}: {e}")
     
     return goal
 
@@ -90,7 +107,7 @@ async def get_goal(
         raise HTTPException(status_code=404, detail="Goal not found")
     
     # Verify ownership
-    if goal.user_id != user_id:
+    if cast(UUID, goal.user_id) != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return goal
@@ -154,7 +171,6 @@ async def delete_goal(
 @router.post("/{goal_id}/refresh")
 async def refresh_goal_opportunities(
     goal_id: UUID,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user)
 ):
@@ -170,20 +186,19 @@ async def refresh_goal_opportunities(
     if goal.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    background_tasks.add_task(
-        refresh_goal_background,
-        goal_id,
-        goal.filters
-    )
+    try: 
+        client = await get_temporal_client()
+        await client.start_workflow(
+            GoalRefreshWorkflow.run,
+            args=[str(goal.id), goal.filters or {}],
+            id=f"goal-refresh-{goal.id}-{goal.updated_at}",
+            task_queue="genie-tasks",
+        )
+    except Exception as e:
+        logger.error(f"Error starting refresh workflow for goal {goal.id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start refresh process")
     
     return {"message": "Refresh started", "goal_id": str(goal_id)}
 
 
-async def refresh_goal_background(goal_id: UUID, goal_filters: dict):
-    from app.database import AsyncSessionLocal
-    
-    async with AsyncSessionLocal() as db:
-        result = await coordinator.refresh_goal_opportunities(
-            db, goal_id, goal_filters
-        )
 

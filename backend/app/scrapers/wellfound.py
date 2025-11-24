@@ -5,19 +5,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class AngelListScraper(Crawl4AIBaseScraper):
-    """Scraper for AngelList (Wellfound) startup jobs"""
+class WellFoundScraper(Crawl4AIBaseScraper):
+    """Scraper for Wellfound startup jobs"""
     
     def __init__(self):
         super().__init__(
-            source_name="AngelList",
-            base_url="https://wellfound.com",  # AngelList rebranded to Wellfound
+            source_name="Wellfound",
+            base_url="https://wellfound.com", 
             rate_limit=2
         )
     
     async def scrape(self, keywords: List[str] = None, **filters) -> List[Dict[str, Any]]:
         """
-        Scrape startup job listings from AngelList/Wellfound
+        Scrape startup job listings from Wellfound
         
         Args:
             keywords: List of keywords to filter jobs
@@ -50,7 +50,7 @@ class AngelListScraper(Crawl4AIBaseScraper):
             normalized = []
             for opp in opportunities:
                 if not isinstance(opp, dict):
-                    logger.warning(f"AngelList: Skipping non-dict item: {type(opp)}")
+                    logger.warning(f"Wellfound: Skipping non-dict item: {type(opp)}")
                     continue
                 normalized.append({
                     "title": opp.get("title", ""),
@@ -64,9 +64,9 @@ class AngelListScraper(Crawl4AIBaseScraper):
                     "opportunity_type": "job"
                 })
             
-            logger.info(f"AngelList: Found {len(normalized)} opportunities")
+            logger.info(f"wellfound: Found {len(normalized)} opportunities")
             return normalized
             
         except Exception as e:
-            logger.error(f"Error scraping AngelList: {e}")
+            logger.error(f"Error scraping wellfound: {e}")
             return []

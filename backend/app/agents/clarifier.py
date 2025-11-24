@@ -45,7 +45,7 @@ class ClarifierAgent:
         ]
         
         try:
-            structured_goal = await structured_completion(messages, model="gemini-1.5-flash")
+            structured_goal = await structured_completion(messages, model="gemini-2.5-flash")
             structured_goal["original_description"] = initial_description
             return structured_goal
         except Exception as e:
@@ -80,7 +80,7 @@ class ClarifierAgent:
         ]
         
         try:
-            response = await chat_completion(messages, model="gemini-1.5-flash", temperature=0.8)
+            response = await chat_completion(messages, model="gemini-2.5-flash", temperature=0.8)
             return response
         except Exception as e:
             logger.error(f"Error generating clarifying questions: {e}")
@@ -118,7 +118,7 @@ class ClarifierAgent:
         ]
         
         try:
-            async for token in chat_completion_stream(messages, model="gemini-1.5-flash", temperature=0.8):
+            async for token in chat_completion_stream(messages, model="gemini-2.5-flash", temperature=0.8):
                 yield token
         except Exception as e:
             logger.error(f"Error generating clarifying questions stream: {e}")

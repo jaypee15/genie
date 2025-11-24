@@ -39,9 +39,16 @@ class ExecutorAgent:
         
         # Remove keywords from filters to avoid duplicate argument
         scraper_filters = {k: v for k, v in filters.items() if k != 'keywords'}
-        
+
+        # Limit to 3 concurrent scrapers to prevent OOM
+        semaphore = asyncio.Semaphore(3)
+
+        async def scrape_with_limit(scraper):
+            async with semaphore:
+                return await self._scrape_with_logging(db, scraper, keywords, scraper_filters)
+
         tasks = [
-            self._scrape_with_logging(db, scraper, keywords, scraper_filters)
+            scrape_with_limit(scraper)
             for scraper in scrapers
         ]
         

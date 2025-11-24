@@ -7,11 +7,12 @@ from fastapi import FastAPI
 import uvicorn
 
 from app.config import settings
+from app.services.temporal import get_temporal_client
 from app.workflows.matching import (
     GoalProcessingWorkflow,
-    clarify_goal_activity,
-    execute_search_activity,
-    rank_opportunities_activity,
+    GoalRefreshWorkflow,
+    run_deep_research_activity,
+    refresh_goal_activity,
 )
 from app.workflows.scraping import (
     DailyScrapeWorkflow,
@@ -21,7 +22,10 @@ from app.workflows.scraping import (
     check_new_opportunities_activity,
 )
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -30,34 +34,24 @@ app = FastAPI()
 async def live():
     return {"status": "alive"}
 
-@app.get("/health/ready")
-async def ready():
-    return {"status": "ready"}
-
-
 async def run_server_and_worker():
-    client = await Client.connect(
-        settings.temporal_address,
-        namespace=settings.temporal_namespace,
-        api_key=settings.temporal_api_key,
-        tls=True,
-    )
+    client = await get_temporal_client()
 
     worker = Worker(
         client,
-        task_queue="genie-task-queue",
+        task_queue="genie-tasks",
         workflows=[
             GoalProcessingWorkflow,
             DailyScrapeWorkflow,
             GoalMonitoringWorkflow,
+            GoalRefreshWorkflow,
         ],
         activities=[
-            clarify_goal_activity,
-            execute_search_activity,
-            rank_opportunities_activity,
+            run_deep_research_activity,
             scrape_all_sources_activity,
             get_active_goals_activity,
             check_new_opportunities_activity,
+            refresh_goal_activity,
         ],
     )
 

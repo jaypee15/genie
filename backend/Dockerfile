@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN playwright install chromium || \
+RUN playwright install chromium --with-deps || \
     (echo "Playwright install failed, retrying..." && sleep 5 && playwright install chromium) || \
     echo "Playwright installation skipped - will be installed at runtime"
 

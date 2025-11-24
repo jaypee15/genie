@@ -6,7 +6,7 @@ from app.scrapers.remoteok import RemoteOKScraper
 from app.scrapers.weworkremotely import WeWorkRemotelyScraper
 from app.scrapers.indeed import IndeedScraper
 from app.scrapers.ycjobs import YCJobsScraper
-from app.scrapers.angellist import AngelListScraper
+from app.scrapers.wellfound import WellFoundScraper
 from app.scrapers.eventbrite import EventbriteScraper
 
 SCRAPER_REGISTRY: Dict[str, Crawl4AIBaseScraper] = {
@@ -16,13 +16,13 @@ SCRAPER_REGISTRY: Dict[str, Crawl4AIBaseScraper] = {
     "weworkremotely": WeWorkRemotelyScraper(),
     "indeed": IndeedScraper(),
     "ycombinator": YCJobsScraper(),
-    "angellist": AngelListScraper(),
+    "wellfound": WellFoundScraper(),
     "eventbrite": EventbriteScraper(),
 }
 
 GOAL_TYPE_TO_SCRAPERS = {
     "speaking": ["papercall", "sessionize", "eventbrite"],
-    "job": ["remoteok", "weworkremotely", "indeed", "ycombinator", "angellist"],
+    "job": ["remoteok", "weworkremotely", "indeed", "ycombinator", "wellfound"],
     "event": ["eventbrite", "papercall"],
     "grant": [],
 }
@@ -47,5 +47,3 @@ __all__ = [
     "get_all_scrapers",
     "get_scraper",
     "SCRAPER_REGISTRY"
-]
-

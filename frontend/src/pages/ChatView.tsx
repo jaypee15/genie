@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useRef, useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useConversation, useAnswerQuestions } from '@/api/chat'
@@ -10,6 +10,7 @@ import { Message, MessageRole } from '@/types/chat'
 
 const ChatView = () => {
   const { conversationId } = useParams<{ conversationId: string }>()
+  const navigate = useNavigate()
   const { data: conversation, isLoading } = useConversation(conversationId || '')
   const { messages: wsMessages, streamingMessages, isConnected, handleSSEMessage } = useChatStream(conversationId || null)
   const answerQuestions = useAnswerQuestions()
@@ -121,6 +122,20 @@ const ChatView = () => {
   useEffect(() => {
     scrollToBottom()
   }, [displayMessages])
+
+  // Auto-navigate when goal processing is complete
+  useEffect(() => {
+    // Check if the last message contains the completion metadata
+    const lastMsg = displayMessages[displayMessages.length - 1]
+    
+    if (lastMsg?.metadata?.type === 'completion' && lastMsg.metadata.goal_id) {
+      // Add a small delay for the user to read the "I'm starting..." message
+      const timer = setTimeout(() => {
+        navigate(`/goals/${lastMsg.metadata?.goal_id}/opportunities`)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [displayMessages, navigate])
 
   const handleAnswerQuestions = async (answers: Array<{ question: string; answer: string }>) => {
     if (!conversationId) return
