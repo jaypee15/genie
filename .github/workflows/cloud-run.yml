@@ -159,7 +159,7 @@ jobs:
             --region ${{ secrets.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --port 5174 \
+            --port 80 \
             --cpu 1 \
             --memory 512Mi \
             --min-instances 0 \

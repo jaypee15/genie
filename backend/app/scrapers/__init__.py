@@ -47,3 +47,4 @@ __all__ = [
     "get_all_scrapers",
     "get_scraper",
     "SCRAPER_REGISTRY"
+]
