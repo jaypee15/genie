@@ -4,7 +4,6 @@ import Dashboard from './pages/Dashboard'
 import GoalCreate from './pages/GoalCreate'
 import OpportunitiesView from './pages/OpportunitiesView'
 import Settings from './pages/Settings'
-import ChatView from './pages/ChatView'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
@@ -18,11 +17,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route
               path="/chat/:conversationId"
-              element={
-                <ProtectedRoute>
-                  <ChatView />
-                </ProtectedRoute>
-              }
+              element={<LandingPage />}
             />
             <Route
               path="/dashboard"

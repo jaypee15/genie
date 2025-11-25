@@ -6,6 +6,8 @@ import logging
 import uuid as uuid_lib
 
 from app.agents.clarifier import ClarifierAgent
+from app.agents.executor import ExecutorAgent
+from app.agents.ranker import RankerAgent
 from app.models.goal import Goal, GoalStatus, GoalType
 from app.models.chat import Message
 from app.services.temporal import get_temporal_client
@@ -29,6 +31,86 @@ class CoordinatorAgent:
     
     def __init__(self):
         self.clarifier = ClarifierAgent()
+        self.executor = ExecutorAgent()
+        self.ranker = RankerAgent()
+
+    async def get_ranked_opportunities(
+        self,
+        db: AsyncSession,
+        goal_id: UUID,
+        user_id: UUID,
+        limit: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Retrieve and rank opportunities for a given goal.
+        Used by the GET /api/opportunities endpoint.
+        """
+        try:
+            ranked = await self.ranker.rank_opportunities(
+                db=db,
+                goal_id=goal_id,
+                user_id=user_id,
+                limit=limit
+            )
+            
+            summary = await self.ranker.generate_summary(ranked)
+            
+            user_message = await self.clarifier.format_results_for_user(
+                opportunities_count=len(ranked),
+                summary=summary,
+                status="completed"
+            )
+            
+            return {
+                "success": True,
+                "opportunities": ranked,
+                "summary": summary,
+                "user_message": user_message,
+                "total": len(ranked)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting ranked opportunities: {e}")
+            error_message = await self.clarifier.format_results_for_user(
+                opportunities_count=0,
+                status="error"
+            )
+            return {
+                "success": False,
+                "error": str(e),
+                "user_message": error_message,
+                "opportunities": []
+            }
+
+    async def refresh_goal_opportunities(
+        self,
+        db: AsyncSession,
+        goal_id: UUID,
+        goal_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Manually trigger a re-scrape/refresh for a goal.
+        Used by the Temporal Refresh Workflow.
+        """
+        logger.info(f"Refreshing opportunities for goal {goal_id}")
+        
+        try:
+            # We reuse the executor logic here for the refresh action
+            opportunities = await self.executor.execute_search(db, goal_data)
+            
+            return {
+                "success": True,
+                "goal_id": str(goal_id),
+                "new_opportunities": len(opportunities),
+                "message": f"Found {len(opportunities)} new opportunities"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error refreshing opportunities: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
     
     async def generate_questions_stream(self, initial_description: str) -> AsyncGenerator[str, None]:
         """Stream a conversational clarifying message (Initial Chat)"""

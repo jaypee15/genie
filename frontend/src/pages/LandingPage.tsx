@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCreateConversation, useConversation } from '@/api/chat'
@@ -12,8 +12,9 @@ import { Message, MessageRole } from '@/types/chat'
 
 const LandingPage = () => {
   const navigate = useNavigate()
+  const { conversationId: urlConversationId } = useParams<{ conversationId?: string }>()
   const { user, loading: authLoading } = useAuth()
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(urlConversationId || null)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
@@ -23,6 +24,13 @@ const LandingPage = () => {
   const { data: conversation } = useConversation(currentConversationId || '')
   const { messages: wsMessages, streamingMessages, isConnected, handleSSEMessage } = useChatStream(currentConversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Sync URL conversation ID with state
+  useEffect(() => {
+    if (urlConversationId && urlConversationId !== currentConversationId) {
+      setCurrentConversationId(urlConversationId)
+    }
+  }, [urlConversationId])
 
   // Merge and dedupe messages by id, keep chronological order
   const baseMessages = (() => {
@@ -55,7 +63,7 @@ const LandingPage = () => {
     const allMessages = [...optimisticMessages, ...baseMessages, ...streamingEntries]
     
     for (const msg of allMessages) {
-      // Skip optimistic if we have the real message from backend
+      // Skip optimistic if we have the real message from backend (same content and role)
       const isOptimistic = optimisticMessages.some(o => o.id === msg.id)
       const hasReal = baseMessages.some(m => 
         m.role === msg.role && 
@@ -77,6 +85,10 @@ const LandingPage = () => {
     )
   })()
 
+  // Track if we're in a conversation (prevent flashing back to welcome screen)
+  // Use displayMessages OR currentConversationId to ensure we stay in chat mode
+  const inConversation = currentConversationId !== null || displayMessages.length > 0 || isTyping
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -94,20 +106,6 @@ const LandingPage = () => {
       handleSendMessage(messageCopy)
     }
   }, [user, draftMessage, authLoading])
-
-  // Auto-navigate when goal processing is complete
-  useEffect(() => {
-    // Check if the last message contains the completion metadata
-    const lastMsg = displayMessages[displayMessages.length - 1]
-    
-    if (lastMsg?.metadata?.type === 'completion' && lastMsg.metadata.goal_id) {
-      // Add a small delay for the user to read the "I'm starting..." message
-      const timer = setTimeout(() => {
-        navigate(`/goals/${lastMsg.metadata?.goal_id}/opportunities`)
-      }, 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [displayMessages, navigate])
 
   const handleSendMessage = async (message: string) => {
     // Check if user is authenticated
@@ -158,13 +156,12 @@ const LandingPage = () => {
       })
       setCurrentConversationId(result.id)
       
-      // Clear optimistic message after SSE message arrives
-      setTimeout(() => {
-        setOptimisticMessages([])
-      }, 2000)
+      // Update URL with conversation ID (ChatGPT style - same view, URL updates)
+      navigate(`/chat/${result.id}`, { replace: true })
       
-      // DON'T navigate - stay on same page for smooth experience
-      // navigate(`/chat/${result.id}`, { replace: true })
+      // Don't clear optimistic messages - let the deduplication logic handle it
+      // The displayMessages logic will automatically filter out duplicates when real messages arrive
+      // This prevents the flash when clearing optimistic messages before real ones load
     } catch (error) {
       console.error('Error creating conversation:', error)
       setOptimisticMessages([])
@@ -195,10 +192,7 @@ const LandingPage = () => {
         onEvent: handleSSEMessage,
       })
       
-      // Clear optimistic message after SSE delivers real message
-      setTimeout(() => {
-        setOptimisticMessages([])
-      }, 2000)
+      // Don't clear optimistic messages - deduplication logic handles it
     } catch (error) {
       console.error('Error answering questions:', error)
       setOptimisticMessages([])
@@ -211,10 +205,10 @@ const LandingPage = () => {
     conversation?.status === 'processing'
 
   return (
-    <div className="flex flex-col h-full bg-[#0A0A0A] transition-all duration-300 ease-in-out">
-      {displayMessages.length === 0 ? (
-        // Welcome Screen - Centered
-        <div className="flex-1 flex flex-col items-center justify-center px-6 transition-all duration-300 ease-in-out">
+    <div className="flex flex-col h-full bg-[#0A0A0A]">
+      {!inConversation ? (
+        // Welcome Screen - Centered with input
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
           <div className="w-full max-w-5xl">
             <div className="text-center mb-12">
               <div className="inline-flex items-center gap-3 mb-6">
@@ -230,7 +224,7 @@ const LandingPage = () => {
             <div className="mb-8">
               <ChatInput
                 onSend={handleSendMessage}
-                disabled={false}
+                disabled={isProcessing}
                 placeholder="What opportunities are you looking for?"
               />
             </div>
@@ -257,7 +251,7 @@ const LandingPage = () => {
       ) : (
         <>
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-6 py-8 animate-fadeIn">
+          <div className="flex-1 overflow-y-auto px-6 py-8">
             <div className="max-w-5xl mx-auto">
               <div className="space-y-6">
                 {displayMessages.map((message, index) => (
