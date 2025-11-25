@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, AsyncGenerator, Tuple, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from uuid import UUID
 import logging
 import uuid as uuid_lib
@@ -69,7 +70,7 @@ class CoordinatorAgent:
             )
 
             # 2. Check Intent (Did user say "stop" or "hello"?)
-            intent = await self.clarifier.classify_intent(latest_answer)
+            intent = self.clarifier.classify_intent(latest_answer)
             
             # 3. DECISION: Are we done clarifying?
             # We proceed if the goal is semantically complete AND the user isn't just saying "hi" or "stop"

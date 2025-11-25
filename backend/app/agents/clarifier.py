@@ -146,7 +146,7 @@ class ClarifierAgent:
         ]
         
         try:
-            refined_goal = await structured_completion(messages, model="gpt-4o-mini")
+            refined_goal = await structured_completion(messages, model="gemini-2.5-flash")
             return refined_goal
         except Exception as e:
             logger.error(f"Error refining goal: {e}")
@@ -323,7 +323,7 @@ Do not repeat already-collected fields."""
         ]
         
         try:
-            extracted = await structured_completion(messages, model="gpt-4o-mini")
+            extracted = await structured_completion(messages, model="gemini-2.5-flash")
             updated = {**collected_info, **extracted}
             return updated
         except Exception as e:

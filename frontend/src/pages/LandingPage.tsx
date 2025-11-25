@@ -59,8 +59,8 @@ const LandingPage = () => {
       const isOptimistic = optimisticMessages.some(o => o.id === msg.id)
       const hasReal = baseMessages.some(m => 
         m.role === msg.role && 
-        m.content === msg.content && 
-        Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 5000
+        m.content.trim() === msg.content.trim() && 
+        m.id !== msg.id
       )
       
       if (isOptimistic && hasReal) {
@@ -118,6 +118,20 @@ const LandingPage = () => {
       return
     }
 
+    // Check if we're in clarifying mode - if so, answer questions instead
+    const lastMessage = displayMessages[displayMessages.length - 1]
+    const isAwaitingClarification = 
+      currentConversationId && 
+      lastMessage?.role === MessageRole.ASSISTANT && 
+      lastMessage?.metadata?.type === 'clarifying' &&
+      conversation?.status === 'clarifying'
+    
+    if (isAwaitingClarification) {
+      // User is answering clarifying questions - treat as answer
+      await handleAnswerQuestions([{ question: 'clarification', answer: message }])
+      return
+    }
+
     // Create optimistic user message IMMEDIATELY
     const tempId = crypto.randomUUID()
     const optimisticMsg: Message = {
@@ -161,14 +175,33 @@ const LandingPage = () => {
   const handleAnswerQuestions = async (answers: Array<{ question: string; answer: string }>) => {
     if (!currentConversationId) return
 
+    // Create optimistic user message for the answer
+    const answerText = answers.map((qa) => qa.answer).join('\n')
+    const tempId = crypto.randomUUID()
+    const optimisticMsg: Message = {
+      id: tempId,
+      conversation_id: currentConversationId,
+      role: MessageRole.USER,
+      content: answerText,
+      created_at: new Date().toISOString(),
+    }
+    
+    setOptimisticMessages([optimisticMsg])
+
     try {
       await answerQuestions.mutateAsync({
         conversationId: currentConversationId,
         answers,
         onEvent: handleSSEMessage,
       })
+      
+      // Clear optimistic message after SSE delivers real message
+      setTimeout(() => {
+        setOptimisticMessages([])
+      }, 2000)
     } catch (error) {
       console.error('Error answering questions:', error)
+      setOptimisticMessages([])
     }
   }
 

@@ -70,9 +70,6 @@ export const useCreateConversation = () => {
                     const event = new MessageEvent(currentEventType || 'message', { data })
                     onEvent(event)
                   }
-                  
-                  // Reset event type after processing
-                  currentEventType = ''
                 } catch (e) {
                   console.error('Failed to parse SSE data:', e)
                 }
@@ -202,8 +199,6 @@ export const useAnswerQuestions = () => {
                   // Create a custom MessageEvent with the event type
                   const event = new MessageEvent(currentEventType || 'message', { data })
                   onEvent(event)
-                  // Reset event type after processing
-                  currentEventType = ''
                 } catch (e) {
                   console.error('Failed to parse SSE data:', e)
                 }
