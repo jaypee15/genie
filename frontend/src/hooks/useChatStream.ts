@@ -128,12 +128,15 @@ export const useChatStream = (conversationId: string | null) => {
 
   useEffect(() => {
     const prev = prevConversationIdRef.current
-    const isInitialAttach = prev === null && conversationId !== null
     const isSameConversation = prev === conversationId
+    const isNavigatingToNewChat = prev !== null && conversationId === null
+    const isSwitchingConversations = prev !== null && conversationId !== null && prev !== conversationId
     
-    // Only reset when switching between two DIFFERENT real conversations,
-    // NOT on the initial null -> id transition (which preserves SSE state)
-    if (!isSameConversation && !isInitialAttach) {
+    // Reset state when:
+    // 1. Switching between two different real conversations (id -> different id)
+    // 2. Going back to new chat (id -> null, e.g., clicking "New Goal")
+    // Do NOT reset on initial attach (null -> id) to preserve SSE state
+    if (!isSameConversation && (isNavigatingToNewChat || isSwitchingConversations)) {
       setMessages([])
       setStreamingMessages(new Map<string, { content: string; startedAt: string }>())
       streamingMessagesRef.current = new Map<string, { content: string; startedAt: string }>()

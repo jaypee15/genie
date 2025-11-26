@@ -26,10 +26,21 @@ const LandingPage = () => {
   const { messages: wsMessages, streamingMessages, isConnected, handleSSEMessage } = useChatStream(currentConversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Sync URL conversation ID with state
+  // Sync URL conversation ID with state (handles both setting and clearing)
   useEffect(() => {
-    if (urlConversationId && urlConversationId !== currentConversationId) {
-      setCurrentConversationId(urlConversationId)
+    if (urlConversationId !== currentConversationId) {
+      // URL changed - sync state
+      if (urlConversationId) {
+        // Navigating to an existing conversation
+        setCurrentConversationId(urlConversationId)
+        setHasStartedConversation(true)
+      } else {
+        // Navigating to /chat (new goal) - reset everything
+        setCurrentConversationId(null)
+        setHasStartedConversation(false)
+        setOptimisticMessages([])
+        setIsTyping(false)
+      }
     }
   }, [urlConversationId])
 
@@ -58,26 +69,41 @@ const LandingPage = () => {
     }))
   })()
 
+  // Clear optimistic messages once real messages arrive from the backend
+  useEffect(() => {
+    if (optimisticMessages.length > 0 && baseMessages.length > 0) {
+      // Check if any optimistic message has a matching real message (same role and content)
+      const hasMatchingReal = optimisticMessages.some(opt =>
+        baseMessages.some(real =>
+          real.role === opt.role && real.content.trim() === opt.content.trim()
+        )
+      )
+      if (hasMatchingReal) {
+        setOptimisticMessages([])
+      }
+    }
+  }, [baseMessages, optimisticMessages])
+
   const displayMessages: Message[] = (() => {
     // Merge optimistic, base, and streaming messages with deduplication
     const byId = new Map<string, Message>()
-    const allMessages = [...optimisticMessages, ...baseMessages, ...streamingEntries]
+    // Put base messages first (they're the "real" ones), then streaming
+    // Optimistic are only shown if no matching real message exists
+    const allMessages = [...baseMessages, ...streamingEntries]
     
     for (const msg of allMessages) {
-      // Skip optimistic if we have the real message from backend (same content and role)
-      const isOptimistic = optimisticMessages.some(o => o.id === msg.id)
-      const hasReal = baseMessages.some(m => 
-        m.role === msg.role && 
-        m.content.trim() === msg.content.trim() && 
-        m.id !== msg.id
-      )
-      
-      if (isOptimistic && hasReal) {
-        continue // Skip optimistic, use real message
-      }
-      
       if (!byId.has(msg.id)) {
         byId.set(msg.id, msg)
+      }
+    }
+    
+    // Add optimistic messages only if they don't have a matching real message
+    for (const opt of optimisticMessages) {
+      const hasReal = baseMessages.some(m => 
+        m.role === opt.role && m.content.trim() === opt.content.trim()
+      )
+      if (!hasReal && !byId.has(opt.id)) {
+        byId.set(opt.id, opt)
       }
     }
     
