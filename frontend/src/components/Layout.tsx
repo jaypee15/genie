@@ -43,7 +43,7 @@ const Layout = () => {
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           <Link
-            to="/"
+            to="/chat"
             className={`flex items-center gap-3 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-medium transition-all ${
               isCollapsed ? 'px-3 py-3 justify-center' : 'px-4 py-3'
             }`}

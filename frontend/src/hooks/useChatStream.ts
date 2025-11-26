@@ -11,6 +11,7 @@ export const useChatStream = (conversationId: string | null) => {
   const streamingMessagesRef = useRef<Map<string, { content: string; startedAt: string }>>(new Map())
   const seenMessageIdsRef = useRef<Set<string>>(new Set())
   const lastTokenRef = useRef<Map<string, string>>(new Map())
+  const prevConversationIdRef = useRef<string | null>(null)
   const queryClient = useQueryClient()
 
   const handleSSEMessage = useCallback((event: MessageEvent) => {
@@ -126,12 +127,21 @@ export const useChatStream = (conversationId: string | null) => {
   }, [streamingMessages])
 
   useEffect(() => {
-    // Reset when conversation changes
-    setMessages([])
-    setStreamingMessages(new Map<string, { content: string; startedAt: string }>())
-    streamingMessagesRef.current = new Map<string, { content: string; startedAt: string }>()
-    seenMessageIdsRef.current.clear()
-    lastTokenRef.current.clear()
+    const prev = prevConversationIdRef.current
+    const isInitialAttach = prev === null && conversationId !== null
+    const isSameConversation = prev === conversationId
+    
+    // Only reset when switching between two DIFFERENT real conversations,
+    // NOT on the initial null -> id transition (which preserves SSE state)
+    if (!isSameConversation && !isInitialAttach) {
+      setMessages([])
+      setStreamingMessages(new Map<string, { content: string; startedAt: string }>())
+      streamingMessagesRef.current = new Map<string, { content: string; startedAt: string }>()
+      seenMessageIdsRef.current.clear()
+      lastTokenRef.current.clear()
+    }
+    
+    prevConversationIdRef.current = conversationId
     
     // SSE connections are established per-request now, not persistent
     // This hook just manages the state

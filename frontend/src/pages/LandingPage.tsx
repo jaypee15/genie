@@ -19,6 +19,7 @@ const LandingPage = () => {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
   const [isTyping, setIsTyping] = useState(false)
+  const [hasStartedConversation, setHasStartedConversation] = useState<boolean>(Boolean(urlConversationId))
   const createConversation = useCreateConversation()
   const answerQuestions = useAnswerQuestions()
   const { data: conversation } = useConversation(currentConversationId || '')
@@ -86,8 +87,8 @@ const LandingPage = () => {
   })()
 
   // Track if we're in a conversation (prevent flashing back to welcome screen)
-  // Use displayMessages OR currentConversationId to ensure we stay in chat mode
-  const inConversation = currentConversationId !== null || displayMessages.length > 0 || isTyping
+  // Use a stable flag and conversationId so transient message states don't flip the layout
+  const inConversation = hasStartedConversation || currentConversationId !== null
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -126,11 +127,13 @@ const LandingPage = () => {
     
     if (isAwaitingClarification) {
       // User is answering clarifying questions - treat as answer
+      setHasStartedConversation(true)
       await handleAnswerQuestions([{ question: 'clarification', answer: message }])
       return
     }
 
     // Create optimistic user message IMMEDIATELY
+    setHasStartedConversation(true)
     const tempId = crypto.randomUUID()
     const optimisticMsg: Message = {
       id: tempId,
@@ -171,6 +174,8 @@ const LandingPage = () => {
 
   const handleAnswerQuestions = async (answers: Array<{ question: string; answer: string }>) => {
     if (!currentConversationId) return
+
+    setHasStartedConversation(true)
 
     // Create optimistic user message for the answer
     const answerText = answers.map((qa) => qa.answer).join('\n')

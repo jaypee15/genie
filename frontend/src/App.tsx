@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import Dashboard from './pages/Dashboard'
 import GoalCreate from './pages/GoalCreate'
@@ -14,9 +14,9 @@ function App() {
       <Router>
         <Routes>
           <Route element={<Layout />}>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route
-              path="/chat/:conversationId"
+              path="/chat/:conversationId?"
               element={<LandingPage />}
             />
             <Route
