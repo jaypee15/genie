@@ -5,7 +5,7 @@ from deepagents import create_deep_agent, CompiledSubAgent
 from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.store.postgres import PostgresStore
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.memory import MemorySaver
 from psycopg_pool import ConnectionPool
 from app.config import settings
 
@@ -46,7 +46,7 @@ def get_subagents():
         4. Use `save_opportunities_to_db` to persist valid entries.
         5. Report back with the number of saved items.
         """,
-        "tools": [save_opportunities_to_db, "read_file", "ls"], 
+        "tools": [save_opportunities_to_db], 
         "model": "google_genai:gemini-2.5-flash"
     }
 
@@ -135,10 +135,8 @@ async def create_genie_agent():
 
     conn_pool = get_db_pool()
     store = PostgresStore(conn_pool)
-    checkpointer = PostgresSaver(conn_pool)
-
-    store.setup() 
-    checkpointer.setup()
+    checkpointer = MemorySaver()
+    store.setup()
 
     # Hybrid Filesystem
     def backend_factory(runtime):
