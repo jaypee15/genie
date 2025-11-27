@@ -194,7 +194,7 @@ class CoordinatorAgent:
                     
                     # --- PHASE C: USER FEEDBACK ---
                     # Stream a confirmation message
-                    completion_message = f"I've understood your goal! I'm now deploying a **Deep Research Agent** to find {goal.goal_type.value} opportunities for you.\n\nThis involves scraping multiple sources and analyzing them, which can take a few minutes. You'll be notified when the report is ready."
+                    completion_message = f"I've understood your goal! I'm now deploying a Deep Research Agent to find {goal.goal_type.value} opportunities for you.\n\nThis involves scraping multiple sources and analyzing them, which can take a few minutes. You'll be notified when the report is ready."
                     
                     msg_id = str(uuid_lib.uuid4())
                     

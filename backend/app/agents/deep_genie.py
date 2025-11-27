@@ -6,14 +6,14 @@ from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.store.postgres import PostgresStore
 from langgraph.checkpoint.postgres import PostgresSaver
-from psycopg_pool import AsyncConnectionPool
+from psycopg_pool import ConnectionPool
 from app.config import settings
 from app.agents.tools import scrape_opportunities, save_opportunities_to_db
 
 logger = logging.getLogger(__name__)
-_DB_POOL: Optional[AsyncConnectionPool] = None
+_DB_POOL: Optional[ConnectionPool] = None
 
-async def get_db_pool() -> AsyncConnectionPool:
+def get_db_pool() -> ConnectionPool:
     """
     Singleton pattern for Database Connection Pool.
     """
@@ -21,13 +21,13 @@ async def get_db_pool() -> AsyncConnectionPool:
     if _DB_POOL is None:
         conn_string = settings.database_url.replace("+asyncpg", "")
         # Initialize pool with reasonable limits for the worker
-        _DB_POOL = AsyncConnectionPool(
+        _DB_POOL = ConnectionPool(
             conninfo=conn_string,
             min_size=1,
             max_size=10, 
             kwargs={"autocommit": True}
         )
-        logger.info("Initialized global AsyncConnectionPool for Deep Agent")
+        logger.info("Initialized global ConnectionPool for Deep Agent")
     return _DB_POOL
 
 # Shared Analyst (Standardizer)
@@ -42,7 +42,7 @@ analyst_subagent = {
     5. Report back with the number of saved items.
     """,
     "tools": [save_opportunities_to_db, "read_file", "ls"], 
-    "model": "gemini-2.5-flash"
+    "model": "google_genai:gemini-2.5-flash"
 }
 
 # The Domain Specialists
@@ -82,7 +82,7 @@ job_hunter_subagent = {
     Sources to prioritize: RemoteOK, WeWorkRemotely, YC Jobs, Indeed.
     """,
     "tools": [scrape_opportunities],
-    "model": "gemini-2.5-flash"
+    "model": "google_genai:gemini-2.5-flash"
 }
 
 # Specialized for SPEAKING / CONFERENCES
@@ -100,7 +100,7 @@ speaker_scout_subagent = {
     Sources to prioritize: PaperCall, Sessionize, Eventbrite.
     """,
     "tools": [scrape_opportunities],
-    "model": "gemini-2.5-flash"
+    "model": "google_genai:gemini-2.5-flash"
 }
 
 # Specialized for GRANTS / FUNDING
@@ -116,19 +116,19 @@ grant_finder_subagent = {
     4. If results are found, delegate to the 'analyst' to save them.
     """,
     "tools": [scrape_opportunities],
-    "model": "gemini-2.5-flash"
+    "model": "google_genai:gemini-2.5-flash"
 }
 
 # The Main Agent Factory ---
 
 async def create_genie_agent():
 
-    conn_pool = await get_db_pool()
+    conn_pool = get_db_pool()
     store = PostgresStore(conn_pool)
     checkpointer = PostgresSaver(conn_pool)
 
-    await store.setup() 
-    await checkpointer.setup()
+    store.setup() 
+    checkpointer.setup()
 
     # Hybrid Filesystem
     def backend_factory(runtime):

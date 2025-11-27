@@ -39,40 +39,52 @@ export const useCreateConversation = () => {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let conversationId: string | null = null
-      let currentEventType = ''
+      let buffer = ''
 
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
 
-          const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n')
+          // Append new chunk to buffer
+          buffer += decoder.decode(value, { stream: true })
+          
+          // Process complete events (separated by \n\n)
+          const events = buffer.split('\n\n')
+          // Keep the last part in buffer (might be incomplete)
+          buffer = events.pop() || ''
 
-          for (const line of lines) {
-            if (line.startsWith('event:')) {
-              currentEventType = line.slice(7).trim()
-              continue
+          for (const eventBlock of events) {
+            if (!eventBlock.trim()) continue
+            
+            const lines = eventBlock.split('\n')
+            let eventType = ''
+            let eventData = ''
+            
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim()
+              } else if (line.startsWith('data:')) {
+                eventData = line.slice(5).trim()
+              }
             }
-            if (line.startsWith('data:')) {
-              const data = line.slice(6).trim()
-              if (data) {
-                try {
-                  const parsed = JSON.parse(data)
-                  
-                  // Extract conversation_id from conversation_created event
-                  if (parsed.conversation_id) {
-                    conversationId = parsed.conversation_id
-                  }
-                  
-                  // Call event handler if provided
-                  if (onEvent) {
-                    const event = new MessageEvent(currentEventType || 'message', { data })
-                    onEvent(event)
-                  }
-                } catch (e) {
-                  console.error('Failed to parse SSE data:', e)
+            
+            if (eventData) {
+              try {
+                const parsed = JSON.parse(eventData)
+                
+                // Extract conversation_id from conversation_created event
+                if (parsed.conversation_id) {
+                  conversationId = parsed.conversation_id
                 }
+                
+                // Call event handler if provided
+                if (onEvent) {
+                  const event = new MessageEvent(eventType || 'message', { data: eventData })
+                  onEvent(event)
+                }
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e, eventData)
               }
             }
           }
@@ -177,31 +189,42 @@ export const useAnswerQuestions = () => {
       // Read SSE stream
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      let currentEventType = ''
+      let buffer = ''
 
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
 
-          const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n')
+          // Append new chunk to buffer
+          buffer += decoder.decode(value, { stream: true })
+          
+          // Process complete events (separated by \n\n)
+          const events = buffer.split('\n\n')
+          // Keep the last part in buffer (might be incomplete)
+          buffer = events.pop() || ''
 
-          for (const line of lines) {
-            if (line.startsWith('event:')) {
-              currentEventType = line.slice(7).trim()
-              continue
+          for (const eventBlock of events) {
+            if (!eventBlock.trim()) continue
+            
+            const lines = eventBlock.split('\n')
+            let eventType = ''
+            let eventData = ''
+            
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim()
+              } else if (line.startsWith('data:')) {
+                eventData = line.slice(5).trim()
+              }
             }
-            if (line.startsWith('data:')) {
-              const data = line.slice(6).trim()
-              if (data && onEvent) {
-                try {
-                  // Create a custom MessageEvent with the event type
-                  const event = new MessageEvent(currentEventType || 'message', { data })
-                  onEvent(event)
-                } catch (e) {
-                  console.error('Failed to parse SSE data:', e)
-                }
+            
+            if (eventData && onEvent) {
+              try {
+                const event = new MessageEvent(eventType || 'message', { data: eventData })
+                onEvent(event)
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e, eventData)
               }
             }
           }

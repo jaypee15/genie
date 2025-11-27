@@ -57,7 +57,7 @@ const ChatMessage: FC<ChatMessageProps> = ({ message }) => {
           {/* Completion with Goal Link */}
           {message.metadata?.type === 'completion' && message.metadata.goal_id && (
             <a
-              href={`/dashboard/${message.metadata.goal_id}/opportunities`}
+              href={`/goals/${message.metadata.goal_id}/opportunities`}
               className="mt-3 inline-flex items-center text-sm text-cyan-300 hover:text-cyan-200 underline"
             >
               View Opportunities →
