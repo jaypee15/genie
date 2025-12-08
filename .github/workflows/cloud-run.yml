@@ -95,8 +95,8 @@ jobs:
             --port 8000 \
             --cpu 2 \
             --memory 4Gi \
-            --min-instances 1 \
-            --max-instances 10
+            --min-instances 0 \
+            --max-instances 2
 
   deploy-worker:
     needs: build-and-push
@@ -128,7 +128,7 @@ jobs:
             --port 8080 \
             --cpu 2 \
             --memory 4Gi \
-            --min-instances 1 \
+            --min-instances 0 \
             --max-instances 1 \
             --no-cpu-throttling
 
@@ -163,4 +163,4 @@ jobs:
             --cpu 1 \
             --memory 512Mi \
             --min-instances 0 \
-            --max-instances 5
+            --max-instances 2

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     database_url: str
     
     google_api_key: str
+    tavily_api_key: str
     
     temporal_address: str
     temporal_namespace: str
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
     # Search optimization settings
     min_internal_opportunities: int = 20  # Minimum relevant opportunities before skipping web scrape
     internal_search_relevance_threshold: float = 0.7  # Minimum similarity score for internal search
+    
+    # Tavily settings
+    enable_tavily_for_jobs: bool = True
+    enable_tavily_for_speaking: bool = True
+    enable_tavily_for_events: bool = True
+    enable_tavily_for_grants: bool = True
+    tavily_max_results: int = 15
+    tavily_search_depth: str = "advanced"  # "basic" or "advanced"
     
     @property
     def allowed_origins_list(self) -> List[str]:

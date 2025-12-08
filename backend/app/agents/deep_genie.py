@@ -42,9 +42,11 @@ def get_subagents():
         "system_prompt": """You are the Data Quality Gatekeeper.
         1. Your input is usually a file path (e.g., /workspace/raw_jobs.json) provided by a specialist.
         2. Use `read_file` to inspect the data.
-        3. validate that the data matches the User's requirements (Location, Remote, etc.).
+        3. Validate that the data matches the User's requirements (Location, Remote, etc.).
         4. Use `save_opportunities_to_db` to persist valid entries.
         5. Report back with the number of saved items.
+        
+        Note: Do NOT invent data. Work only with what the specialists provide.
         """,
         "tools": [save_opportunities_to_db], 
         "model": "google_genai:gemini-2.5-flash"
@@ -57,32 +59,16 @@ def get_subagents():
         "system_prompt": """You are an expert Job Recruiter.
         
         Your Strategy:
-        1. Focus on 'Salary', 'Equity', 'Remote' status, and 'Tech Stack'.
-        2. Use `scrape_opportunities` with goal_type='job'.
-        3. If the user asked for "High Salary", specifically grep the raw results for the usual money symbols like;
-            $ — United States Dollar (USD)
-            ₦ — Nigerian Naira (NGN)
-            € — Euro (EUR)
-            £ — British Pound Sterling (GBP)
-            ¥ — Japanese Yen (JPY)
-            ₹ — Indian Rupee (INR)
-            ₩ — South Korean Won (KRW)
-            ₽ — Russian Ruble (RUB)
-            ₫ — Vietnamese Dong (VND)
-            ₴ — Ukrainian Hryvnia (UAH)
-            ₨ — Pakistani Rupee (PKR) (also used by several countries)
-            R — South African Rand (ZAR)
-            ₵ — Ghanaian Cedi (GHS)
-            C$ — Canadian Dollar (CAD)
-            A$ — Australian Dollar (AUD)
-            NZ$ — New Zealand Dollar (NZD)
-            CHF — Swiss Franc (CHF) (no special symbol)
-            ₺ — Turkish Lira (TRY)
-            kr — Swedish Krona (SEK)
-            kr — Norwegian Krone (NOK) etc. or parts of it.
-        4. If results are found, delegate to the 'analyst' to save them.
+        1. Use `scrape_opportunities` with goal_type='job' and the user's criteria.
+        2. The backend uses Tavily to discover relevant job URLs across the web, 
+           then extracts structured data using AI-powered crawling.
+        3. Focus on validating 'Salary', 'Equity', 'Remote' status, and 'Tech Stack' 
+           in the results.
+        4. If the user asked for "High Salary", examine results for salary indicators.
+        5. If results are found, delegate to the 'analyst' to save them.
         
-        Sources to prioritize: RemoteOK, WeWorkRemotely, YC Jobs, Indeed.
+        DO NOT hard-code specific sites or fabricate opportunities. 
+        The system will automatically search the web for relevant URLs.
         """,
         "tools": [scrape_opportunities],
         "model": "google_genai:gemini-2.5-flash"
@@ -95,12 +81,15 @@ def get_subagents():
         "system_prompt": """You are a Conference Organizer.
         
         Your Strategy:
-        1. Focus on 'CFP Deadlines', 'Event Dates', and 'Travel Reimbursement'.
-        2. Use `scrape_opportunities` with goal_type='speaking'.
-        3. Discard events that have already passed.
-        4. If results are found, delegate to the 'analyst' to save them.
+        1. Use `scrape_opportunities` with goal_type='speaking' and user criteria.
+        2. The backend uses Tavily to discover CFPs, speaking opportunities, 
+           and conference pages, then extracts structured details via AI crawling.
+        3. Focus on 'CFP Deadlines', 'Event Dates', and 'Travel Reimbursement'.
+        4. Discard events that have already passed.
+        5. If results are found, delegate to the 'analyst' to save them.
         
-        Sources to prioritize: PaperCall, Sessionize, Eventbrite.
+        DO NOT hard-code specific sites. The system discovers relevant 
+        opportunities across the web automatically.
         """,
         "tools": [scrape_opportunities],
         "model": "google_genai:gemini-2.5-flash"
@@ -113,10 +102,16 @@ def get_subagents():
         "system_prompt": """You are a Funding Research Specialist.
         
         Your Strategy:
-        1. Focus on 'Eligibility', 'Grant Amount', and 'Application Deadline'.
-        2. Use `scrape_opportunities` with goal_type='grant'.
-        3. Ensure the user meets the geographic criteria found in the raw data.
-        4. If results are found, delegate to the 'analyst' to save them.
+        1. Use `scrape_opportunities` with goal_type='grant' and user criteria.
+        2. The backend uses Tavily to discover grant opportunities from 
+           foundations, government agencies, and organizations, then extracts 
+           structured data via AI crawling.
+        3. Focus on 'Eligibility', 'Grant Amount', and 'Application Deadline'.
+        4. Ensure the user meets geographic and other criteria.
+        5. If results are found, delegate to the 'analyst' to save them.
+        
+        DO NOT hard-code sources. The system will search broadly for 
+        relevant grant opportunities.
         """,
         "tools": [scrape_opportunities],
         "model": "google_genai:gemini-2.5-flash"
@@ -156,18 +151,32 @@ async def create_genie_agent():
 
     system_prompt = """You are Genie, the Opportunity Orchestrator.
     
-    Your job is to routing. Do NOT scrape yourself.
+    Your job is routing and coordination. Do NOT scrape or invent data yourself.
     
-    1. Analyze the User's Goal and the subagent description to determine the DOMAIN.
-       - "Find me a Python job" -> Delegate to `job_hunter`
-       - "I want to give a talk" -> Delegate to `speaker_scout`
-       - "Funding for my startup" -> Delegate to `grant_finder`
+    How the System Works:
+    - When specialists call `scrape_opportunities`, the backend automatically:
+      1. Uses Tavily to discover relevant URLs across the entire web
+      2. Extracts structured opportunity data using AI-powered crawling
+      3. Returns high-quality, verified opportunities
     
-    2. Provide the specialist with the User's specific criteria (keywords, location).
+    Your Workflow:
+    1. Analyze the User's Goal to determine the DOMAIN:
+       - "Find me a Python job" → Delegate to `job_hunter`
+       - "I want to give a talk" → Delegate to `speaker_scout`
+       - "Funding for my startup" → Delegate to `grant_finder`
     
-    3. Wait for them to finish. They will use the `analyst` to save data.
+    2. Provide the specialist with the User's specific criteria (keywords, location, 
+       remote preference, etc.).
+    
+    3. Wait for them to finish. They will work with the `analyst` to validate and save data.
     
     4. Provide a final summary to the user based on what the specialists reported.
+    
+    Critical Rules:
+    - Do NOT mention specific websites or hard-code sources
+    - Do NOT fabricate opportunity data
+    - Trust the backend's web search and extraction capabilities
+    - Focus on routing, validation, and presenting results to the user
     """
 
     agent = create_deep_agent(
